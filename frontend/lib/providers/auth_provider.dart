@@ -44,6 +44,16 @@ class AuthProvider with ChangeNotifier {
       );
 
       await _auth.signInWithCredential(credential);
+      
+      // Update lastLoginAt
+      if (_auth.currentUser != null) {
+        await FirebaseFirestore.instance.collection('users').doc(_auth.currentUser!.uid).set({
+          'email': _auth.currentUser!.email,
+          'displayName': _auth.currentUser!.displayName,
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
       return true;
     } catch (e) {
       print('Google Sign-In error: $e');

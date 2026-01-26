@@ -45,7 +45,68 @@ export const backupToSheets = onCall(async (request) => {
         requestBody: { values },
     });
 
+    // Save lastBackupAt for "Pending Data" metric
+    await admin.firestore().collection("teams").doc(teamId).set({
+        lastBackupAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
     return { success: true, count: todos.length };
+});
+
+/**
+ * Admin Dashboard Metrics Aggregation
+ */
+export const getAdminDashboardMetrics = onCall(async (request) => {
+    if (!request.auth || request.auth.token.role !== "admin") {
+        throw new HttpsError("permission-denied", "Admin ONLY.");
+    }
+
+    const teamId = request.data.teamId;
+    const db = admin.firestore();
+
+    // 1. Active Rate (Users logged in within 24h)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const activeUsersSnap = await db.collection("users")
+        .where("teamId", "==", teamId)
+        .where("lastLoginAt", ">=", yesterday)
+        .get(); // In prod use count() aggregation
+    const activeCount = activeUsersSnap.size;
+
+    // 2. Completion Rate (from Sharded Counters)
+    const teamDoc = await db.collection("teams").doc(teamId).get();
+    const stats = teamDoc.data()?.stats || { totalCompleted: 0, totalCount: 0 };
+    const completionRate = stats.totalCount > 0
+        ? Math.round((stats.totalCompleted / stats.totalCount) * 100)
+        : 0;
+
+    // 3. Priority Distribution (Priority 5 count)
+    const p5Snap = await db.collection("todos")
+        .where("teamId", "==", teamId)
+        .where("priority", "==", 5)
+        .where("isCompleted", "==", false)
+        .get(); // In prod use count()
+    const urgentCount = p5Snap.size;
+
+    // 4. Backup Pending Data
+    const lastBackupAt = teamDoc.data()?.lastBackupAt;
+    let pendingCount = 0;
+    if (lastBackupAt) {
+        const pendingSnap = await db.collection("todos")
+            .where("teamId", "==", teamId)
+            .where("createdAt", ">", lastBackupAt)
+            .get();
+        pendingCount = pendingSnap.size;
+    } else {
+        // Never backed up? Count all.
+        pendingCount = stats.totalCount;
+    }
+
+    return {
+        activeUserCount: activeCount,
+        completionRate: completionRate,
+        urgentCount: urgentCount,
+        backupPendingCount: pendingCount
+    };
 });
 
 // Use v1 for document triggers for simpler path matching in this snippet

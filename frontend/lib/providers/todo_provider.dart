@@ -47,7 +47,11 @@ class TodoProvider with ChangeNotifier {
 
   Future<bool> addTodo(String userId, String teamId, String content, int priority, bool isSecret) async {
     try {
-      await _db.collection('todos').add({
+      final batch = _db.batch();
+      
+      // 1. Add Todo
+      final todoRef = _db.collection('todos').doc();
+      batch.set(todoRef, {
         'content': content,
         'priority': priority,
         'isSecret': isSecret,
@@ -56,6 +60,15 @@ class TodoProvider with ChangeNotifier {
         'teamId': teamId,
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // 2. Increment Sharded Counter (e.g. 5 shards)
+      final shardId = (DateTime.now().millisecond % 5).toString();
+      final shardRef = _db.collection('teams').doc(teamId).collection('counters').doc(shardId);
+      batch.set(shardRef, {
+        'total': FieldValue.increment(1),
+      }, SetOptions(merge: true));
+
+      await batch.commit();
       return true;
     } catch (e) {
       print('Add todo error: $e');
@@ -63,10 +76,40 @@ class TodoProvider with ChangeNotifier {
     }
   }
 
-  Future<void> toggleComplete(String todoId, bool isCompleted) async {
-    await _db.collection('todos').doc(todoId).update({
+  Future<void> toggleComplete(String todoId, String teamId, bool isCompleted) async {
+    final batch = _db.batch();
+    
+    // 1. Update Todo
+    batch.update(_db.collection('todos').doc(todoId), {
       'isCompleted': isCompleted,
       'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
+    });
+
+    // 2. Update Sharded Counter
+    final shardId = (DateTime.now().millisecond % 5).toString();
+    final shardRef = _db.collection('teams').doc(teamId).collection('counters').doc(shardId);
+    batch.set(shardRef, {
+      'completed': FieldValue.increment(isCompleted ? 1 : -1),
+    }, SetOptions(merge: true));
+
+    await batch.commit();
+  }
+
+  // --- Comments Sub-collection Logic ---
+
+  Stream<List<Map<String, dynamic>>> syncComments(String todoId) {
+    return _db.collection('todos').doc(todoId).collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+  }
+
+  Future<void> addComment(String todoId, String userId, String userName, String content) async {
+    await _db.collection('todos').doc(todoId).collection('comments').add({
+      'userId': userId,
+      'userName': userName,
+      'content': content,
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 }

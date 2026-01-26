@@ -54,3 +54,36 @@ export const backupToSheets = functions.https.onCall(async (data, context) => {
 
     return { success: true, count: todos.length };
 });
+
+// Use v1 for document triggers for simpler path matching in this snippet
+import * as firestore from "firebase-functions/v1/firestore";
+
+/**
+ * Aggregates team stats from shards on write.
+ * For 1,000+ users, this handles the 1-write-per-second limit.
+ */
+export const aggregateTeamStats = firestore
+    .document("teams/{teamId}/counters/{shardId}")
+    .onWrite(async (change: any, context: any) => {
+        const teamId = context.params.teamId;
+        const countersRef = admin.firestore().collection("teams").doc(teamId).collection("counters");
+
+        const shardsSnapshot = await countersRef.get();
+        let totalCompleted = 0;
+        let totalCount = 0;
+
+        shardsSnapshot.forEach(doc => {
+            const data = doc.data();
+            totalCompleted += data.completed || 0;
+            totalCount += data.total || 0;
+        });
+
+        await admin.firestore().collection("teams").doc(teamId).set({
+            stats: {
+                totalCompleted,
+                totalCount,
+                completionRate: totalCount > 0 ? (totalCompleted / totalCount) : 0,
+                lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+            }
+        }, { merge: true });
+    });

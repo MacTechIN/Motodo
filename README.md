@@ -62,3 +62,8 @@ flutter run
 
 ---
 © 2026 Motodo B2B Project
+
+## 🛡️ Advanced Features (V1.2)
+- **Sub-collections (Comments)**: Each Todo document hosts a `comments` sub-collection, optimizing bandwidth.
+- **Distributed Sharding Counter**: Teams use a 5-shard counter mechanism to scale write performance for real-time statistics (e.g., team completion rate).
+- **Hardened Security Rules**: Server-side validation ensures strictly enforced privacy—`isSecret` tasks are never transmitted to non-owners.

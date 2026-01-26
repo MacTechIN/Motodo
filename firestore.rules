@@ -20,6 +20,12 @@ service cloud.firestore {
       allow read: if isTeamMember(teamId);
       allow create: if isAuthenticated();
       allow update: if isTeamMember(teamId) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      // Sharded Counters
+      match /counters/{shardId} {
+        allow read: if isTeamMember(teamId);
+        allow write: if isTeamMember(teamId);
+      }
     }
 
     match /todos/{todoId} {
@@ -28,7 +34,7 @@ service cloud.firestore {
 
       // Read: 
       // 1. Owner can see everything
-      // 2. Team members can see only non-secret todos
+      // 2. Others can see ONLY if not secret AND in same team
       allow read: if isAuthenticated() && (
         request.auth.uid == resource.data.createdBy || 
         (isTeamMember(resource.data.teamId) && resource.data.isSecret == false)
@@ -36,6 +42,18 @@ service cloud.firestore {
 
       // Update/Delete: Only owner
       allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+
+      // Sub-collection: Comments
+      match /comments/{commentId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/todos/$(todoId)).data.createdBy == request.auth.uid || 
+          (isTeamMember(get(/databases/$(database)/documents/todos/$(todoId)).data.teamId) && get(/databases/$(database)/documents/todos/$(todoId)).data.isSecret == false)
+        );
+        allow create: if isAuthenticated() && (
+          get(/databases/$(database)/documents/todos/$(todoId)).data.createdBy == request.auth.uid || 
+          (isTeamMember(get(/databases/$(database)/documents/todos/$(todoId)).data.teamId) && get(/databases/$(database)/documents/todos/$(todoId)).data.isSecret == false)
+        );
+      }
     }
   }
 }

@@ -52,10 +52,39 @@ class AdminDashboard extends StatelessWidget {
                 backgroundColor: AppColors.priority4,
                 foregroundColor: AppColors.textPrimary,
               ),
+            ElevatedButton.icon(
+              onPressed: () => _handleCSVExport(context, auth.user?.teamId ?? 'default-team'),
+              icon: const Icon(Icons.file_download),
+              label: const Text('Download Team CSV'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                backgroundColor: AppColors.priority5,
+                foregroundColor: AppColors.textPrimary,
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleCSVExport(BuildContext context, String teamId) async {
+    try {
+      final result = await FirebaseFunctions.instance
+          .httpsCallable('exportTeamToCSV')
+          .call({'teamId': teamId});
+
+      if (result.data['csv'] != null) {
+        // In a real app, use a file picker or save utility
+        print('CSV Data received: ${result.data['csv']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('CSV Exported! (Check console for raw data)')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('CSV Export failed: $e')),
+      );
+    }
   }
 }

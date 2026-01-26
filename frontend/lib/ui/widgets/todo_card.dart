@@ -31,8 +31,13 @@ class TodoCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (todo.attachmentUrl != null)
+                  const Icon(Icons.attach_file, size: 16, color: AppColors.textSecondary),
                 if (todo.isSecret)
-                  const Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4.0),
+                    child: Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                  ),
               ],
             ),
             const SizedBox(height: 8),

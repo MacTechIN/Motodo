@@ -1,22 +1,18 @@
-import * as functions from "firebase-functions";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { google } from "googleapis";
+import { Parser } from "json2csv";
 
 admin.initializeApp();
 
-export const backupToSheets = functions.https.onCall(async (data, context) => {
-    // 1. Auth check
-    if (!context.auth || context.auth.token.role !== "admin") {
-        throw new functions.https.HttpsError(
-            "permission-denied",
-            "Only admins can trigger backups."
-        );
+export const backupToSheets = onCall(async (request) => {
+    if (!request.auth || request.auth.token.role !== "admin") {
+        throw new HttpsError("permission-denied", "Only admins can trigger backups.");
     }
 
-    const teamId = data.teamId;
-    const sheetId = data.sheetId; // e.g., the ID of the target spreadsheet
+    const teamId = request.data.teamId;
+    const sheetId = request.data.sheetId;
 
-    // 2. Fetch data from Firestore
     const snapshot = await admin.firestore()
         .collection("todos")
         .where("teamId", "==", teamId)
@@ -25,14 +21,12 @@ export const backupToSheets = functions.https.onCall(async (data, context) => {
 
     const todos = snapshot.docs.map(doc => doc.data());
 
-    // 3. Setup Google Sheets API
     const auth = new google.auth.GoogleAuth({
         scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
     const authClient = await auth.getClient();
     const sheets = google.sheets({ version: "v4", auth: authClient as any });
 
-    // 4. Transform data for Sheets
     const values = [
         ["Created At", "Content", "Priority", "Secret", "Completed"],
         ...todos.map(t => [
@@ -44,7 +38,6 @@ export const backupToSheets = functions.https.onCall(async (data, context) => {
         ])
     ];
 
-    // 5. Update Google Sheet
     await sheets.spreadsheets.values.update({
         spreadsheetId: sheetId,
         range: "Sheet1!A1",
@@ -87,3 +80,35 @@ export const aggregateTeamStats = firestore
             }
         }, { merge: true });
     });
+
+/**
+ * Admin-only CSV Export
+ */
+export const exportTeamToCSV = onCall(async (request) => {
+    if (!request.auth || request.auth.token.role !== "admin") {
+        throw new HttpsError("permission-denied", "Admin ONLY.");
+    }
+
+    const teamId = request.data.teamId;
+    const snapshot = await admin.firestore().collection("todos").where("teamId", "==", teamId).get();
+    const todos = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+            id: doc.id,
+            content: d.content,
+            priority: d.priority,
+            isCompleted: d.isCompleted,
+            createdBy: d.createdBy,
+            createdAt: d.createdAt?.toDate().toISOString() || ""
+        };
+    });
+
+    try {
+        const fields = ["id", "content", "priority", "isCompleted", "createdBy", "createdAt"];
+        const parser = new Parser({ fields });
+        const csv = parser.parse(todos);
+        return { success: true, csv };
+    } catch (err) {
+        throw new HttpsError("internal", "CSV failure");
+    }
+});

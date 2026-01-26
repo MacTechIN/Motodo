@@ -8,6 +8,7 @@ class Todo {
   final String teamId;
   final DateTime createdAt;
   final DateTime? completedAt;
+  final String? attachmentUrl;
 
   Todo({
     required this.id,
@@ -19,6 +20,7 @@ class Todo {
     required this.teamId,
     required this.createdAt,
     this.completedAt,
+    this.attachmentUrl,
   });
 
   factory Todo.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,7 @@ class Todo {
       teamId: json['teamId'],
       createdAt: DateTime.parse(json['createdAt']),
       completedAt: json['completedAt'] != null ? DateTime.parse(json['completedAt']) : null,
+      attachmentUrl: json['attachmentUrl'],
     );
   }
 }

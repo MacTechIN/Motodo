@@ -137,6 +137,7 @@ class _AddTodoBottomSheet extends StatefulWidget {
 
 class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
   final _controller = TextEditingController();
+  final _attachmentController = TextEditingController();
   int _priority = 3;
   bool _isSecret = false;
 
@@ -196,6 +197,35 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
             onChanged: (val) => setState(() => _isSecret = val),
             secondary: const Icon(Icons.lock),
           ),
+          const SizedBox(height: 16),
+          const Text('Attachment URL', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _attachmentController,
+                  decoration: const InputDecoration(
+                    hintText: 'https://...',
+                    border: OutlineInputBorder(),
+                  ),
+                  enabled: false, // Simulated: Disabled for free users
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'PREMIUM',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 32),
           ElevatedButton(
             onPressed: () {
@@ -207,6 +237,7 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
                   _controller.text,
                   _priority,
                   _isSecret,
+                  attachmentUrl: _attachmentController.text.isNotEmpty ? _attachmentController.text : null,
                 );
                 Navigator.pop(context);
               }

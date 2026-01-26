@@ -45,7 +45,7 @@ class TodoProvider with ChangeNotifier {
        });
   }
 
-  Future<bool> addTodo(String userId, String teamId, String content, int priority, bool isSecret) async {
+  Future<bool> addTodo(String userId, String teamId, String content, int priority, bool isSecret, {String? attachmentUrl}) async {
     try {
       final batch = _db.batch();
       
@@ -58,6 +58,7 @@ class TodoProvider with ChangeNotifier {
         'isCompleted': false,
         'createdBy': userId,
         'teamId': teamId,
+        'attachmentUrl': attachmentUrl,
         'createdAt': FieldValue.serverTimestamp(),
       });
 

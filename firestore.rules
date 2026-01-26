@@ -12,6 +12,11 @@ service cloud.firestore {
       return isAuthenticated() && (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teamId == teamId);
     }
 
+    // Helper to check if a team is Premium
+    function isPremiumTeam(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)).data.isPremium == true;
+    }
+
     match /users/{userId} {
       allow read, write: if request.auth.uid == userId;
     }
@@ -19,7 +24,11 @@ service cloud.firestore {
     match /teams/{teamId} {
       allow read: if isTeamMember(teamId);
       allow create: if isAuthenticated();
-      allow update: if isTeamMember(teamId) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow update: if isTeamMember(teamId) && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+        // Freemium: Max 5 members for free teams
+        (request.resource.data.memberCount <= 5 || isPremiumTeam(teamId))
+      );
       
       // Sharded Counters
       match /counters/{shardId} {
@@ -29,27 +38,25 @@ service cloud.firestore {
     }
 
     match /todos/{todoId} {
-      // Create: Anyone authenticated can create
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        // Freemium: No attachments for free teams
+        (request.resource.data.attachmentUrl == null || isPremiumTeam(request.resource.data.teamId))
+      );
 
-      // Read: 
-      // 1. Owner can see everything
-      // 2. Others can see ONLY if not secret AND in same team
       allow read: if isAuthenticated() && (
         request.auth.uid == resource.data.createdBy || 
         (isTeamMember(resource.data.teamId) && resource.data.isSecret == false)
       );
 
-      // Update/Delete: Only owner
-      allow update, delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.createdBy && (
+        // Freemium: Cannot add attachment to existing todo if not premium
+        (request.resource.data.attachmentUrl == null || isPremiumTeam(resource.data.teamId))
+      );
+      
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.createdBy;
 
-      // Sub-collection: Comments
       match /comments/{commentId} {
-        allow read: if isAuthenticated() && (
-          get(/databases/$(database)/documents/todos/$(todoId)).data.createdBy == request.auth.uid || 
-          (isTeamMember(get(/databases/$(database)/documents/todos/$(todoId)).data.teamId) && get(/databases/$(database)/documents/todos/$(todoId)).data.isSecret == false)
-        );
-        allow create: if isAuthenticated() && (
+        allow read, create: if isAuthenticated() && (
           get(/databases/$(database)/documents/todos/$(todoId)).data.createdBy == request.auth.uid || 
           (isTeamMember(get(/databases/$(database)/documents/todos/$(todoId)).data.teamId) && get(/databases/$(database)/documents/todos/$(todoId)).data.isSecret == false)
         );

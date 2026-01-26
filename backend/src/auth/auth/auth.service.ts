@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma/prisma.service';
 
@@ -9,8 +9,13 @@ export class AuthService {
     private jwtService: JwtService,
   ) { }
 
-  async validateUser(email: string, pass: string): Promise<Record<string, unknown> | null> {
-    const user = await (this.prisma as any).user.findUnique({ where: { email } });
+  async validateUser(
+    email: string,
+    pass: string,
+  ): Promise<Record<string, unknown> | null> {
+    const user = await (this.prisma as any).user.findUnique({
+      where: { email },
+    });
     if (user && (user as { password?: string }).password === pass) {
       const { password: __, ...result } = user as { password?: string };
       return result as Record<string, unknown>;
@@ -18,7 +23,12 @@ export class AuthService {
     return null;
   }
 
-  async login(user: { email: string; id: string; teamId: string | null; role: string }) {
+  async login(user: {
+    email: string;
+    id: string;
+    teamId: string | null;
+    role: string;
+  }) {
     const payload = {
       email: user.email,
       sub: user.id,

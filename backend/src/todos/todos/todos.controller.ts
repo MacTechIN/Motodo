@@ -12,7 +12,7 @@ import { TodosService } from './todos.service';
 @Controller('todos')
 @UseGuards(AuthGuard('jwt'))
 export class TodosController {
-  constructor(private readonly todosService: TodosService) { }
+  constructor(private readonly todosService: TodosService) {}
 
   @Post()
   async create(

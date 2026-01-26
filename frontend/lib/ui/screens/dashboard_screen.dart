@@ -8,6 +8,8 @@ import '../widgets/todo_card.dart';
 import '../admin/admin_layout.dart';
 import 'completed_box.dart';
 
+import 'package:intl/intl.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -16,6 +18,317 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.isAuthenticated) {
+        context.read<TodoProvider>().syncMyTodos(auth.user!.id);
+        if (auth.user?.teamId != null) {
+          context.read<TodoProvider>().syncTeamTodos(auth.user!.teamId!, auth.user!.id);
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final todoProv = context.watch<TodoProvider>();
+
+    return Scaffold(
+      backgroundColor: Colors.white, // Clean white background from image
+      appBar: AppBar(
+        toolbarHeight: 0, // Hide default AppBar to use custom header
+        backgroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              _buildCustomHeader(auth),
+              const SizedBox(height: 24),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('My Focus', style: AppTextStyles.subHeading),
+                      const SizedBox(height: 16),
+                      // My Tasks List
+                      ...todoProv.myTodos.map((todo) => TodoCard(todo: todo)).toList(),
+                      
+                      const SizedBox(height: 32),
+                      const Text("Team's Progress", style: AppTextStyles.subHeading),
+                      const SizedBox(height: 16),
+                      _buildTeamProgressGrid(todoProv),
+                      const SizedBox(height: 80), // Space for FAB
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddTodoModal(context),
+        backgroundColor: const Color(0xFFBAFFC9), // Minty FAB
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.add, color: Colors.black87, size: 28),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildCustomHeader(AuthProvider auth) {
+    final now = DateTime.now();
+    final dateStr = DateFormat('EEEE, MMM d, yyyy').format(now);
+    final hour = now.hour;
+    String greeting = 'Good Morning';
+    if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+    if (hour >= 17) greeting = 'Good Evening';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$greeting, ${auth.user?.displayName?.split(' ').first ?? 'User'}!',
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              dateStr,
+              style: const TextStyle(fontSize: 14, color: Colors.grey),
+            ),
+          ],
+        ),
+        CircleAvatar(
+          backgroundColor: Colors.grey.shade200,
+          backgroundImage: const NetworkImage('https://i.pravatar.cc/150?img=32'), // Placeholder Avatar
+          radius: 24,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTeamProgressGrid(TodoProvider prov) {
+    if (prov.teamTodos.isEmpty) {
+      return const Center(
+        child: Padding(padding: EdgeInsets.all(16), child: Text("No team activity yet.")),
+      );
+    }
+    
+    // Show recent tasks
+    final recentTeamTodos = prov.teamTodos.take(6).toList();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: recentTeamTodos.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.4,
+      ),
+      itemBuilder: (context, index) {
+        final todo = recentTeamTodos[index];
+        // Calculate "Time Ago" roughly
+        final createdAt = DateTime.tryParse(todo.createdAt ?? '') ?? DateTime.now();
+        final diff = DateTime.now().difference(createdAt);
+        String timeAgo = '${diff.inMinutes}m ago';
+        if (diff.inHours > 0) timeAgo = '${diff.inHours}h ago';
+        if (diff.inDays > 0) timeAgo = '${diff.inDays}d ago';
+
+        final customColors = context.select<AuthProvider, Map<int, Color>?>((p) => p.customColors);
+        final color = getPriorityColor(todo.priority, customColors);
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color, 
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   Text(
+                    'Priority ${todo.priority}:', 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    todo.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(timeAgo, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+                  if (todo.isSecret) const Icon(Icons.lock, size: 12, color: Colors.black54),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddTodoModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const _AddTodoBottomSheet(),
+    );
+  }
+}
+
+class _AddTodoBottomSheet extends StatefulWidget {
+  const _AddTodoBottomSheet();
+
+  @override
+  State<_AddTodoBottomSheet> createState() => _AddTodoBottomSheetState();
+}
+
+class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
+  final _controller = TextEditingController();
+  final _attachmentController = TextEditingController();
+  int _priority = 3;
+  bool _isSecret = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+        top: 32,
+        left: 24,
+        right: 24,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Add New Task', style: AppTextStyles.subHeading),
+          const SizedBox(height: 24),
+          TextField(
+            controller: _controller,
+            decoration: const InputDecoration(
+              hintText: 'What needs to be done?',
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          const SizedBox(height: 24),
+          const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(5, (index) {
+              final p = index + 1;
+              return GestureDetector(
+                onTap: () => setState(() => _priority = p),
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: getPriorityColor(p),
+                    shape: BoxShape.circle,
+                    border: _priority == p ? Border.all(width: 2) : null,
+                  ),
+                  child: Center(child: Text('$p')),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: 24),
+          SwitchListTile(
+            title: const Text('Private Task'),
+            value: _isSecret,
+            onChanged: (val) => setState(() => _isSecret = val),
+            secondary: const Icon(Icons.lock),
+          ),
+          const SizedBox(height: 16),
+          const Text('Attachment URL', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _attachmentController,
+                  decoration: const InputDecoration(
+                    hintText: 'https://...',
+                    border: OutlineInputBorder(),
+                  ),
+                  enabled: false, // Simulated: Disabled for free users
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'PREMIUM',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton(
+            onPressed: () {
+              if (_controller.text.isNotEmpty) {
+                final auth = context.read<AuthProvider>();
+                context.read<TodoProvider>().addTodo(
+                  auth.user!.id,
+                  auth.user!.teamId ?? 'default-team',
+                  _controller.text,
+                  _priority,
+                  _isSecret,
+                  attachmentUrl: _attachmentController.text.isNotEmpty ? _attachmentController.text : null,
+                );
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              backgroundColor: AppColors.priority5,
+              foregroundColor: AppColors.textPrimary,
+            ),
+            child: const Text('Create Task'),
+          ),
+        ],
+      ),
+    );
+  }
+}
   @override
   void initState() {
     super.initState();

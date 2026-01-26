@@ -13,55 +13,71 @@ class TodoCard extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16), // Increased margin
       color: getPriorityColor(todo.priority, customColors),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), // More rounded
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Row: Content & Icons
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: Text(
                     todo.content,
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 18, // Larger font
+                      fontWeight: FontWeight.w600,
                       decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
                 if (todo.attachmentUrl != null)
-                  const Icon(Icons.attach_file, size: 16, color: AppColors.textSecondary),
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.attach_file, size: 20, color: Colors.black54),
+                  ),
                 if (todo.isSecret)
                   const Padding(
-                    padding: EdgeInsets.only(left: 4.0),
-                    child: Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                    padding: EdgeInsets.only(left: 8),
+                    child: Icon(Icons.lock_outline, size: 20, color: Colors.black54),
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            // Bottom Row: Checkbox & Meta
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+               // Checkbox with custom style to match image (approx)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: todo.isCompleted,
+                    onChanged: (val) {
+                      if (val != null) {
+                        context.read<TodoProvider>().toggleComplete(todo.id, todo.teamId, val);
+                      }
+                    },
+                    activeColor: Colors.black87,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  'Priority ${todo.priority}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  todo.isCompleted ? 'Done' : 'Mark as Done',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.comment_outlined, size: 20),
-                  onPressed: () => _showComments(context),
-                  color: AppColors.textSecondary,
-                ),
-                Checkbox(
-                  value: todo.isCompleted,
-                  onChanged: (val) {
-                    if (val != null) {
-                      context.read<TodoProvider>().toggleComplete(todo.id, todo.teamId, val);
-                    }
-                  },
+                const Spacer(),
+                const Icon(Icons.outlined_flag, size: 14, color: Colors.black45),
+                const SizedBox(width: 4),
+                Text(
+                  'Priority: ${todo.priority}',
+                  style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.w500),
                 ),
               ],
             ),

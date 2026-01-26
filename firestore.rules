@@ -35,6 +35,13 @@ service cloud.firestore {
         allow read: if isTeamMember(teamId);
         allow write: if isTeamMember(teamId);
       }
+
+      // Member Stats (Team Pulse)
+      match /members/{memberId} {
+        allow read: if isTeamMember(teamId);
+        // Only Cloud Functions (admin SDK) will write to this, so technically no client write rule needed
+        // but for safety/testing we can allow nothing or admin.
+      }
     }
 
     match /todos/{todoId} {

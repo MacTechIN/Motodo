@@ -154,18 +154,32 @@ export const exportTeamToCSV = onCall(async (request) => {
     const snapshot = await admin.firestore().collection("todos").where("teamId", "==", teamId).get();
     const todos = snapshot.docs.map(doc => {
         const d = doc.data();
+
+        // Calculate Duration
+        let durationHours = "";
+        const createdAt = d.createdAt?.toDate();
+        const completedAt = d.completedAt?.toDate(); // captured in completedAt field
+
+        if (d.isCompleted && createdAt && completedAt) {
+            const diffMs = completedAt.getTime() - createdAt.getTime();
+            durationHours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+        }
+
         return {
             id: doc.id,
             content: d.content,
             priority: d.priority,
             isCompleted: d.isCompleted,
+            isSecret: d.isSecret, // Include secret status
             createdBy: d.createdBy,
-            createdAt: d.createdAt?.toDate().toISOString() || ""
+            createdAt: createdAt?.toISOString() || "",
+            completedAt: completedAt?.toISOString() || "", // New field
+            durationHours: durationHours // New Metric
         };
     });
 
     try {
-        const fields = ["id", "content", "priority", "isCompleted", "createdBy", "createdAt"];
+        const fields = ["id", "content", "priority", "isCompleted", "isSecret", "createdBy", "createdAt", "completedAt", "durationHours"];
         const parser = new Parser({ fields });
         const csv = parser.parse(todos);
         return { success: true, csv };
@@ -173,3 +187,47 @@ export const exportTeamToCSV = onCall(async (request) => {
         throw new HttpsError("internal", "CSV failure");
     }
 });
+
+/**
+ * Team Pulse Engine: Updates member stats on Todo changes.
+ * Allows admins to monitor status without violating privacy.
+ */
+export const updateMemberStats = firestore
+    .document("todos/{todoId}")
+    .onWrite(async (change: any, context: any) => {
+        // Get the document data (either before or after) to identify user and team
+        const data = change.after.exists ? change.after.data() : change.before.data();
+        const userId = data.createdBy;
+        const teamId = data.teamId;
+
+        if (!userId || !teamId) return;
+
+        const db = admin.firestore();
+
+        // Recount all active tasks for this user to ensure consistency
+        // This avoids complex increment/decrement logic on privacy edge cases
+        const snapshot = await db.collection("todos")
+            .where("teamId", "==", teamId)
+            .where("createdBy", "==", userId)
+            .where("isCompleted", "==", false)
+            .get();
+
+        let activeCount = 0;
+        let secretCount = 0;
+        let highPriorityCount = 0;
+
+        snapshot.forEach(doc => {
+            const t = doc.data();
+            activeCount++;
+            if (t.isSecret) secretCount++;
+            if (t.priority >= 4) highPriorityCount++;
+        });
+
+        // Update Member Stats Document
+        await db.collection("teams").doc(teamId).collection("members").doc(userId).set({
+            activeCount,
+            secretCount,
+            highPriorityCount,
+            lastActivityAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+    });

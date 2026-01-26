@@ -4,7 +4,8 @@ import '../../core/design_system.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/todo_provider.dart';
 import '../widgets/todo_card.dart';
-import 'admin_dashboard.dart';
+import '../widgets/todo_card.dart';
+import '../admin/admin_layout.dart';
 import 'completed_box.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -43,7 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: const Icon(Icons.admin_panel_settings),
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AdminDashboard()),
+                MaterialPageRoute(builder: (context) => const AdminLayout()),
               ),
             ),
           IconButton(

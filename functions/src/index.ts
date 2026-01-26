@@ -6,7 +6,15 @@ import { Parser } from "json2csv";
 admin.initializeApp();
 
 export const backupToSheets = onCall(async (request) => {
-    if (!request.auth || request.auth.token.role !== "admin") {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const db = admin.firestore();
+    const userId = request.auth.uid;
+    const userDoc = await db.collection("users").doc(userId).get();
+
+    if (userDoc.data()?.role !== "admin") {
         throw new HttpsError("permission-denied", "Only admins can trigger backups.");
     }
 
@@ -57,12 +65,19 @@ export const backupToSheets = onCall(async (request) => {
  * Admin Dashboard Metrics Aggregation
  */
 export const getAdminDashboardMetrics = onCall(async (request) => {
-    if (!request.auth || request.auth.token.role !== "admin") {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const db = admin.firestore();
+    const userId = request.auth.uid;
+    // Check role from DB to avoid stale custom claims
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (userDoc.data()?.role !== "admin") {
         throw new HttpsError("permission-denied", "Admin ONLY.");
     }
 
     const teamId = request.data.teamId;
-    const db = admin.firestore();
 
     // 1. Active Rate (Users logged in within 24h)
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -149,12 +164,19 @@ export const aggregateTeamStats = firestore
  * Admin-only CSV Export
  */
 export const exportTeamToCSV = onCall(async (request) => {
-    if (!request.auth || request.auth.token.role !== "admin") {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "User must be logged in.");
+    }
+
+    const db = admin.firestore();
+    const userId = request.auth.uid;
+    const userDoc = await db.collection("users").doc(userId).get();
+
+    if (userDoc.data()?.role !== "admin") {
         throw new HttpsError("permission-denied", "Admin ONLY.");
     }
 
     const teamId = request.data.teamId;
-    const db = admin.firestore();
 
     // 1. Fetch Todos
     const snapshot = await db.collection("todos").where("teamId", "==", teamId).get();

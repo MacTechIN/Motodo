@@ -12,24 +12,17 @@
 | :--- | :--- | :--- |
 | **UI Layer** | ✅ Pass | Reference Design과 일치, 반응형 동작 확인. |
 | **Data Layer** | ✅ Pass | Firestore 스키마 준수, 오프라인 모드 활성화됨. |
-| **Logic/Comm** | ⚠️ **Warning** | Cloud Function 권한 검증 로직에서 불일치 발견. |
+| **Logic/Comm** | ✅ **Fixed** | Cloud Function 권한 검증 로직 패치 완료 (V2.2.1). |
 
 ---
 
 ## 2. 🚨 Critical Issues & Action Plan
 
-### [CRITICAL] Cloud Function Admin Permission Denied
-- **Issue**:
-  - `functions/src/index.ts`의 관리자 기능(`backupToSheets`, `exportTeamToCSV`, `getAdminDashboardMetrics`)은 `request.auth.token.role === 'admin'`을 통해 권한을 검사합니다.
-  - 그러나 현재 `AuthProvider.createTeam` 함수는 Firestore의 `users/{uid}` 문서에만 `role: 'admin'`을 기록하며, **Firebase Auth Token의 Custom Claim(claims.role)을 업데이트하지 않습니다.**
-  - 결과적으로, 관리자가 해당 API를 호출하면 **"permission-denied"** 에러가 발생합니다.
-
-- **Root Cause**:
-  - Firestore 문서의 변경 사항이 Firebase Auth Token에 자동으로 반영되지 않음.
-
-- **Recommended Fix (Post-Release Patch)**:
-  1.  **Option A (Backend Force)**: 새로운 Cloud Function 트리거(`onDocumentUpdated`)를 작성하여, Firestore `users/{uid}`의 `role`이 변경될 때 `admin.auth().setCustomUserClaims(uid, { role })`를 실행하도록 구현해야 합니다.
-  2.  **Option B (Short-term Patch)**: Cloud Function의 권한 검사 로직을 `request.auth.token.role` 대신, 함수 내부에서 `admin.firestore().collection('users').doc(uid).get()`를 통해 Firestore 문서를 직접 조회하는 방식으로 변경해야 합니다. (비용 증가하지만 즉시 해결 가능)
+### [RESOLVED] Cloud Function Admin Permission Denied
+- **Issue**: Auth Token Claims 불일치로 인한 권한 거부 문제.
+- **Resolution (V2.2.1)**:
+  - `backupToSheets`, `exportTeamToCSV`, `getAdminDashboardMetrics` 함수 내에서 `Auth Token` 대신 **`Firestore User Doc`을 직접 조회**하도록 로직을 변경했습니다.
+  - 이제 사용자가 팀을 생성(`createTeam`)하여 DB 상의 role이 'admin'이 되는 즉시, 별도의 재로그인 없이 관리자 기능을 사용할 수 있습니다.
 
 ---
 

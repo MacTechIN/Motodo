@@ -82,6 +82,31 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  // --- Team Management Spec ---
+  Future<String?> createTeam(String teamName) async {
+    if (_user == null) return null;
+    try {
+      final teamRef = FirebaseFirestore.instance.collection('teams').doc();
+      await teamRef.set({
+        'name': teamName,
+        'adminUid': _user!.id,
+        'createdAt': FieldValue.serverTimestamp(),
+        'plan': 'free',
+        'stats': {'totalCount': 0, 'totalCompleted': 0}
+      });
+      // Optionally update user's teamId
+      await FirebaseFirestore.instance.collection('users').doc(_user!.id).update({
+        'teamId': teamRef.id,
+        'role': 'admin' 
+      });
+      
+      return teamRef.id;
+    } catch (e) {
+      print('Create Team Error: $e');
+      return null;
+    }
+  }
+
   Future<void> logout() async {
     await _googleSignIn.signOut();
     await _auth.signOut();

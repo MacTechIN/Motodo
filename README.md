@@ -1,20 +1,64 @@
 # Motodo (모두의 해야 할 일)
 
-**Motodo**는 "내가 적으면 팀원이 즉시 아는" 실시간 초투명성을 지향하는 B2B SaaS 협업 툴 (Google Ecosystem Edition) 입니다.
+**Motodo**는 "내가 적으면 팀원이 즉시 아는" 실시간 초투명성을 지향하는 B2B SaaS 협업 툴입니다. 1,000명 이상의 동시 접속을 수용할 수 있는 강력한 고성능 아키텍처를 기반으로 합니다.
 
-## 🛠 추천 기술 스택 (Google Ecosystem)
+## 🛠 Tech Stack
 - **Frontend**: **Flutter** (Web, Mobile, Desktop 단일 코드베이스)
-- **Backend/DB**: **Firebase** (Firestore, Authentication, Cloud Functions)
-- **Sync**: **Firebase Real-time Sync** (1,000명 동시 접속 최적화)
-- **Security**: **Firestore Security Rules** (강력한 데이터 격리 및 필터링)
+- **Backend**: **NestJS** (Modular Architecture)
+- **Database**: **PostgreSQL** + **Prisma ORM**
+- **Auth**: **JWT (JSON Web Token)**
+- **API Docs**: **Swagger / OpenAPI**
+- **Real-time**: **Socket.io** (Ready)
 
-## 💰 비즈니스 모델
-- **Freemium**: 5인 이하 무료 / Pro 플랜(백업 및 통계) 운영.
+## 📁 Project Structure
+```bash
+.
+├── backend/            # NestJS Backend Application
+├── frontend/           # Flutter Frontend Application
+├── firestore.rules     # Firestore Security Rules (Backup)
+├── Docs/               # Project Planning & PRD
+└── README.md           # Documentation
+```
 
-## 🎯 핵심 가치
-- **압도적 확장성**: 1,000명 동시 접속에도 지연 없는 실시간 동기화.
-- **크로스 플랫폼**: 모든 기기에서 동일한 고성능 사용자 경험.
-- **엔터프라이즈 보안**: 백엔드 레벨의 강력한 데이터 격리 및 필터링.
+## 🚀 Getting Started
+
+### Backend Setup
+```bash
+cd backend
+npm install
+# Configure .env with DATABASE_URL
+npx prisma generate
+npm run start:dev
+```
+- API Documents: `http://localhost:3000/api`
+
+### Frontend Setup
+```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+## 🛡 Code Quality & Git Workflow
+
+### Commit Messages
+시맨틱 커밋 메시지 컨벤션을 따릅니다:
+- `feat`: 신규 기능 추가
+- `fix`: 버그 수정
+- `docs`: 문서 수정
+- `refactor`: 코드 리팩토링
+- `test`: 테스트 코드 추가/수정
+
+### Git Hooks (Husky)
+- **commit-msg**: Commitlint를 통해 메시지 컨벤션을 자동 검사합니다.
+- **pre-push**: Push 전에 백엔드 린트/테스트 및 프론트엔드 분석을 강제합니다.
+
+---
+
+## 🔐 Security Key Features
+- **Privacy Filtering**: 상급자/팀원 리스트 조회 시 `isSecret: true`인 할 일은 DB 레벨에서 필터링되어 절대 유출되지 않습니다.
+- **JWT Protection**: 모든 API는 유효한 토큰이 있어야 접근 가능합니다.
+- **Admin Specifics**: 어드민 유저만 팀 전체 데이터를 CSV로 백업할 수 있는 전용 엔드포인트를 제공합니다.
 
 ---
 © 2026 Motodo B2B Project

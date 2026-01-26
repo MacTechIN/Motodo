@@ -1,0 +1,29 @@
+{
+  "name": "motodo",
+  "version": "1.0.0",
+  "description": "**Motodo**는 \"내가 적으면 팀원이 즉시 아는\" 실시간 초투명성을 지향하는 B2B SaaS 협업 툴 (Google Ecosystem Edition) 입니다.",
+  "main": "index.js",
+  "scripts": {
+    "backend:lint": "cd backend && npm run lint",
+    "backend:test": "cd backend && npm test",
+    "frontend:analyze": "cd frontend && flutter analyze",
+    "verify": "npm run backend:lint && npm run backend:test && npm run frontend:analyze",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MacTechIN/Motodo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MacTechIN/Motodo/issues"
+  },
+  "homepage": "https://github.com/MacTechIN/Motodo#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^20.3.1",
+    "@commitlint/config-conventional": "^20.3.1",
+    "husky": "^9.1.7"
+  }
+}

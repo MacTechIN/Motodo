@@ -85,8 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // 2. Create Team 
-    await context.read<AuthProvider>().createTeam(_teamNameController.text);
+    // 2. Join or Create Team
+    await context.read<AuthProvider>().joinOrCreateTeam(_teamNameController.text);
 
     setState(() => _isLoading = false);
     

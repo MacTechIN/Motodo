@@ -17,75 +17,92 @@ class AuthProvider with ChangeNotifier {
   // Dynamic Color System (Pro)
   Map<int, Color>? _customColors;
   Map<int, Color>? get customColors => _customColors;
+  
+  bool _isSyncing = false; // Lock to prevent race conditions
 
   AuthProvider() {
     _auth.userChanges().listen(_onAuthStateChanged);
   }
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
-    _firebaseUser = firebaseUser;
-    if (firebaseUser != null) {
-      try {
-        // Fetch detailed profile from Firestore (Role, Team ID, etc.)
-        final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
-        if (doc.exists) {
-          final data = doc.data()!;
-          _user = model.User.fromJson({
-            ...data,
-            'id': firebaseUser.uid,
-            'email': data['email'] ?? firebaseUser.email ?? '', 
-            'displayName': data['displayName'] ?? firebaseUser.displayName ?? 'User',
-          });
-        } else {
-          // Doc missing? Create it now (Self-Repair)
-          final newUser = model.User(
+    if (_isSyncing) return; // Prevent loop/concurrent updates
+    _isSyncing = true;
+    
+    try {
+      _firebaseUser = firebaseUser;
+      if (firebaseUser != null) {
+        try {
+          // Fetch detailed profile from Firestore (Role, Team ID, etc.)
+          final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
+          if (doc.exists) {
+            final data = doc.data()!;
+            
+            // Optimization: If local user is already up-to-date with Team ID, don't overwrite with Stale data?
+            // But usually Firestore is truth. 
+            // We just proceed. use set(merge) elsewhere ensures we fix eventually.
+            
+            _user = model.User.fromJson({
+              ...data,
+              'id': firebaseUser.uid,
+              'email': data['email'] ?? firebaseUser.email ?? '', 
+              'displayName': data['displayName'] ?? firebaseUser.displayName ?? 'User',
+            });
+          } else {
+            // ... (Self Repair Logic SAME as before) ...
+            final newUser = model.User(
+               id: firebaseUser.uid,
+               email: firebaseUser.email ?? '',
+               displayName: firebaseUser.displayName ?? 'User',
+               role: 'member',
+            );
+            
+            await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+               'email': newUser.email,
+               'displayName': newUser.displayName,
+               'role': newUser.role,
+               'createdAt': FieldValue.serverTimestamp(),
+            });
+            _user = newUser;
+          }
+        } catch (e) {
+          print('Error fetching/creating user profile: $e');
+          _user = model.User(
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             displayName: firebaseUser.displayName ?? 'User',
             role: 'member',
           );
-          
-          await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
-             'email': newUser.email,
-             'displayName': newUser.displayName,
-             'role': newUser.role,
-             'createdAt': FieldValue.serverTimestamp(),
-          });
-          
-          _user = newUser;
         }
-      } catch (e) {
-        print('Error fetching/creating user profile: $e');
-        // Fallback on error (still create in-memory user so app doesn't crash)
-        _user = model.User(
-          id: firebaseUser.uid,
-          email: firebaseUser.email ?? '',
-          displayName: firebaseUser.displayName ?? 'User',
-          role: 'member',
-        );
-      }
-      
-      // Auto-Create Team if Missing (Self-Healing)
-      if (_user?.teamId == null) {
-        try {
-          print('User has no team. Auto-creating Personal Team...');
-          final teamName = "${_user?.displayName ?? 'My'}'s Team";
-          await createTeam(teamName); 
-        } catch (e) {
-          print('Error auto-creating team: $e');
+        
+        // Auto-Create Team if Missing (Self-Healing)
+        // Check if we already have a team locally to avoid redundant API call if Firestore was just stale
+        if (_user?.teamId == null) {
+           // Double check Firestore one last time or just proceed?
+           // Proceeding is fine but let's be careful.
+           try {
+              print('User has no team. Auto-creating Personal Team...');
+              final teamName = "${_user?.displayName ?? 'My'}'s Team";
+              await joinOrCreateTeam(teamName); 
+           } catch (e) {
+              print('Error auto-creating team: $e');
+           }
         }
-      }
 
-      _syncTeamSettings(); // Fetch Pro settings
-    } else {
-      _user = null;
-      _customColors = null;
+        _syncTeamSettings(); // Fetch Pro settings
+      } else {
+        _user = null;
+        _customColors = null;
+      }
+      notifyListeners();
+    } finally {
+      _isSyncing = false;
     }
-    notifyListeners();
   }
 
   void _syncTeamSettings() {
-     // Listen to Team Document for "customColors" settings
+     // ... (Keep existing _syncTeamSettings) ...
+     if (_user?.teamId == null) return; // Guard
+     
     FirebaseFirestore.instance
         .collection('teams')
         .doc(_user?.teamId ?? 'default-team') 
@@ -105,9 +122,10 @@ class AuthProvider with ChangeNotifier {
       
       if (cred.user != null) {
         // Update Auth Profile
-        await cred.user!.updateDisplayName(displayName);
-        await cred.user!.reload(); // Force reload to get updated profile
-        _onAuthStateChanged(_auth.currentUser); // Manually trigger update
+        await cred.user!.updateDisplayName(displayName); 
+        // Note: We do NOT call reload() or _onAuthStateChanged() manually here.
+        // The auth stream will pick up the changes automatically.
+        // This prevents double-execution and race conditions.
 
         try {
            await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({
@@ -188,31 +206,57 @@ class AuthProvider with ChangeNotifier {
   }
 
   // --- Team Management Spec ---
-  Future<String?> createTeam(String teamName) async {
+  Future<String?> joinOrCreateTeam(String teamNameInput) async {
     if (_user == null) return null;
+    final teamName = teamNameInput.trim();
+    
     try {
-      final teamRef = FirebaseFirestore.instance.collection('teams').doc();
-      await teamRef.set({
-        'name': teamName,
-        'adminUid': _user!.id,
-        'createdAt': FieldValue.serverTimestamp(),
-        'plan': 'free',
-        'stats': {'totalCount': 0, 'totalCompleted': 0}
-      });
-      // Use set(merge: true) to ensure it works even if user doc was missing
+      // 1. Search for existing team (Exact Match for now)
+      // Todo: Add finding by case-insensitive name if needed later
+      final query = await FirebaseFirestore.instance
+          .collection('teams')
+          .where('name', isEqualTo: teamName)
+          .limit(1)
+          .get();
+
+      String teamId;
+      String role;
+
+      if (query.docs.isNotEmpty) {
+        // JOIN Existing Team
+        final teamDoc = query.docs.first;
+        teamId = teamDoc.id;
+        role = 'member';
+        print('Joining existing team: $teamName ($teamId)');
+      } else {
+        // CREATE New Team
+        final teamRef = FirebaseFirestore.instance.collection('teams').doc();
+        await teamRef.set({
+          'name': teamName,
+          'adminUid': _user!.id,
+          'createdAt': FieldValue.serverTimestamp(),
+          'plan': 'free',
+          'stats': {'totalCount': 0, 'totalCompleted': 0}
+        });
+        teamId = teamRef.id;
+        role = 'admin';
+        print('Creating new team: $teamName ($teamId)');
+      }
+
+      // 2. Update User Profile (Safe Merge)
       await FirebaseFirestore.instance.collection('users').doc(_user!.id).set({
-        'teamId': teamRef.id,
-        'role': 'admin' 
+        'teamId': teamId,
+        'role': role 
       }, SetOptions(merge: true));
 
-      // Update local state immediately
-      _user = _user!.copyWith(teamId: teamRef.id, role: 'admin');
-      _syncTeamSettings(); // Start listening to new team
+      // 3. Update Local State
+      _user = _user!.copyWith(teamId: teamId, role: role);
+      _syncTeamSettings(); 
       notifyListeners();
       
-      return teamRef.id;
+      return teamId;
     } catch (e) {
-      print('Create Team Error: $e');
+      print('Join/Create Team Error: $e');
       return null;
     }
   }

@@ -47,7 +47,23 @@ class SettingsScreen extends StatelessWidget {
               const Text('Team', style: AppTextStyles.subHeading),
               const SizedBox(height: 16),
               if (user?.teamId == null)
-                _buildSettingItem(Icons.group_work, 'Team Name', 'No Team Assigned')
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSettingItem(Icons.group_work, 'Team Name', 'No Team Assigned'),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text("Generate Personal Team"),
+                        onPressed: () {
+                           final name = "${user?.displayName ?? 'My'}'s Team";
+                           context.read<AuthProvider>().joinOrCreateTeam(name, forceCreate: true);
+                        },
+                      ),
+                    ),
+                  ],
+                )
               else
                 FutureBuilder<DocumentSnapshot>(
                   future: FirebaseFirestore.instance.collection('teams').doc(user!.teamId).get(),

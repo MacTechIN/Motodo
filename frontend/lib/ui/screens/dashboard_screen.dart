@@ -16,18 +16,43 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  AuthProvider? _authProvider;
+  String? _lastUserId;
+  String? _lastTeamId;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      if (auth.isAuthenticated) {
-        context.read<TodoProvider>().syncMyTodos(auth.user!.id);
-        if (auth.user?.teamId != null) {
-          context.read<TodoProvider>().syncTeamTodos(auth.user!.teamId!, auth.user!.id);
+      _authProvider = context.read<AuthProvider>();
+      _authProvider?.addListener(_onAuthUpdated);
+      _onAuthUpdated(); // Initial check
+    });
+  }
+
+  @override
+  void dispose() {
+    _authProvider?.removeListener(_onAuthUpdated);
+    super.dispose();
+  }
+
+  void _onAuthUpdated() {
+    if (!mounted || _authProvider == null) return;
+    final user = _authProvider!.user;
+    
+    if (user != null) {
+      if (user.id != _lastUserId) {
+        _lastUserId = user.id;
+        context.read<TodoProvider>().syncMyTodos(user.id);
+      }
+      
+      if (user.teamId != _lastTeamId) {
+        _lastTeamId = user.teamId;
+        if (user.teamId != null) {
+          context.read<TodoProvider>().syncTeamTodos(user.teamId!, user.id);
         }
       }
-    });
+    }
   }
 
   @override

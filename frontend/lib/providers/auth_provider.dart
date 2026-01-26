@@ -21,6 +21,7 @@ class AuthProvider with ChangeNotifier {
   
   // bool _isSyncing = false; // Removed lock to allow stream events
   StreamSubscription? _teamSettingsSub;
+  StreamSubscription? _userProfileSub; // Live User Profile Listener
   bool _disposed = false; // Safety guard
 
   AuthProvider() {
@@ -31,6 +32,7 @@ class AuthProvider with ChangeNotifier {
   void dispose() {
     _disposed = true;
     _teamSettingsSub?.cancel();
+    _userProfileSub?.cancel();
     super.dispose();
   }
 
@@ -43,68 +45,70 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     if (_disposed) return;
+    _firebaseUser = firebaseUser;
+    
+    // Always cancel old listener to prevent leaks/conflicts
+    _userProfileSub?.cancel();
 
-    try {
-      _firebaseUser = firebaseUser;
-      if (firebaseUser != null) {
-        try {
-          // Fetch detailed profile from Firestore (Role, Team ID, etc.)
-          final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
-          if (doc.exists) {
-            final data = doc.data()!;
-            _user = model.User.fromJson({
-              ...data,
-              'id': firebaseUser.uid,
-              'email': data['email'] ?? firebaseUser.email ?? '', 
-              'displayName': data['displayName'] ?? firebaseUser.displayName ?? 'User',
-            });
-          } else {
-            // ... (Self Repair Logic SAME as before) ...
-            final newUser = model.User(
-               id: firebaseUser.uid,
-               email: firebaseUser.email ?? '',
-               displayName: firebaseUser.displayName ?? 'User',
-               role: 'member',
-            );
-            
-            await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
-               'email': newUser.email,
-               'displayName': newUser.displayName,
-               'role': newUser.role,
-               'createdAt': FieldValue.serverTimestamp(),
-            });
-            _user = newUser;
-          }
-        } catch (e) {
-          print('Error fetching/creating user profile: $e');
-          _user = model.User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            displayName: firebaseUser.displayName ?? 'User',
-            role: 'member',
-          );
-        }
-        
-        // Auto-Create Team if Missing (Self-Healing)
-        if (_user?.teamId == null) {
-           try {
-              print('User has no team. Auto-creating Personal Team...');
-              final teamName = "${_user?.displayName ?? 'My'}'s Team";
-              await joinOrCreateTeam(teamName); 
-           } catch (e) {
-              print('Error auto-creating team: $e');
-           }
-        }
+    if (firebaseUser != null) {
+      // 🚀 OPTIMISTIC LOAD: Show Dashboard instantly
+      if (_user == null) {
+        _user = model.User(
+           id: firebaseUser.uid, 
+           email: firebaseUser.email ?? '', 
+           displayName: firebaseUser.displayName ?? 'User',
+           role: 'member',
+        );
+        notifyListeners(); 
+      }
 
-        _syncTeamSettings(); // Fetch Pro settings
-      } else {
+      // 📡 REAL-TIME UPDATE: Auto-refresh when DB changes (e.g. Team Created)
+      _userProfileSub = FirebaseFirestore.instance
+          .collection('users')
+          .doc(firebaseUser.uid)
+          .snapshots()
+          .listen((snapshot) {
+             if (_disposed) return;
+
+             if (snapshot.exists && snapshot.data() != null) {
+               final data = snapshot.data()!;
+               
+               // Live Update User Model
+               _user = model.User.fromJson({
+                  ...data,
+                  'id': firebaseUser.uid,
+                  'email': data['email'] ?? firebaseUser.email ?? '',
+                  'displayName': data['displayName'] ?? firebaseUser.displayName ?? 'User',
+               });
+               
+               // Auto-Heal: If Team ID is missing, create one (Background)
+               if (_user?.teamId == null) {
+                  print("Real-time: User has no team. Background creating...");
+                  joinOrCreateTeam("${_user?.displayName ?? 'My'}'s Team", forceCreate: true);
+               }
+
+               _syncTeamSettings();
+             } else {
+               // First Login: Create User Doc
+               print("Creating new user profile doc...");
+               FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+                  'email': firebaseUser.email ?? '',
+                  'displayName': firebaseUser.displayName ?? 'User',
+                  'role': 'member',
+                  'createdAt': FieldValue.serverTimestamp(),
+               });
+             }
+             notifyListeners(); // Refresh UI with new data
+          }, onError: (e) {
+             print("User Profile Sync Error: $e");
+          });
+
+    } else {
+        // Logout Cleanup
         _user = null;
         _customColors = null;
         _teamSettingsSub?.cancel();
-      }
-      notifyListeners();
-    } catch (e) {
-      print('Auth State Change Error: $e');
+        notifyListeners();
     }
   }
 
@@ -215,32 +219,43 @@ class AuthProvider with ChangeNotifier {
   }
 
   // --- Team Management Spec ---
-  Future<String?> joinOrCreateTeam(String teamNameInput) async {
+  // --- Team Management Spec ---
+  Future<String?> joinOrCreateTeam(String teamNameInput, {bool forceCreate = false}) async {
     if (_user == null) return null;
     final teamName = teamNameInput.trim();
     
+    String teamId = '';
+    String role = '';
+    
     try {
-      // 1. Search for existing team (Exact Match for now)
-      // Todo: Add finding by case-insensitive name if needed later
-      final query = await FirebaseFirestore.instance
-          .collection('teams')
-          .where('name', isEqualTo: teamName)
-          .limit(1)
-          .get();
+      bool found = false;
 
-      String teamId;
-      String role;
+      // 1. Search for existing team (Skip if forcing create)
+      if (!forceCreate) {
+        try {
+          print('Searching for team: $teamName ...');
+          final query = await FirebaseFirestore.instance
+              .collection('teams')
+              .where('name', isEqualTo: teamName)
+              .limit(1)
+              .get()
+              .timeout(const Duration(seconds: 3)); // Fast timeout
+          
+          if (query.docs.isNotEmpty) {
+            found = true;
+            teamId = query.docs.first.id;
+            role = 'member';
+            print('Joining existing team: $teamName ($teamId)');
+          }
+        } catch (e) {
+          print('Team search failed/timed out, falling back to create: $e');
+        }
+      }
 
-      if (query.docs.isNotEmpty) {
-        // JOIN Existing Team
-        final teamDoc = query.docs.first;
-        teamId = teamDoc.id;
-        role = 'member';
-        print('Joining existing team: $teamName ($teamId)');
-      } else {
-        // CREATE New Team
-        final teamRef = FirebaseFirestore.instance.collection('teams').doc();
-        await teamRef.set({
+      // 2. Create if not found or forced
+      if (!found) {
+         final teamRef = FirebaseFirestore.instance.collection('teams').doc();
+         await teamRef.set({
           'name': teamName,
           'adminUid': _user!.id,
           'createdAt': FieldValue.serverTimestamp(),
@@ -252,13 +267,13 @@ class AuthProvider with ChangeNotifier {
         print('Creating new team: $teamName ($teamId)');
       }
 
-      // 2. Update User Profile (Safe Merge)
+      // 3. Update User Profile (Safe Merge)
       await FirebaseFirestore.instance.collection('users').doc(_user!.id).set({
         'teamId': teamId,
         'role': role 
       }, SetOptions(merge: true));
 
-      // 3. Update Local State
+      // 4. Update Local State
       _user = _user!.copyWith(teamId: teamId, role: role);
       _syncTeamSettings(); 
       notifyListeners();

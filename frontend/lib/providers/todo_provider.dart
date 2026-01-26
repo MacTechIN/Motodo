@@ -14,14 +14,21 @@ class TodoProvider with ChangeNotifier {
   void syncMyTodos(String userId) {
     _db.collection('todos')
        .where('createdBy', isEqualTo: userId)
-       .orderBy('priority', descending: true)
+       .orderBy('priority', descending: false) // 1 (High) -> 5 (Low)
        .snapshots()
        .listen((snapshot) {
-         _myTodos = snapshot.docs.map((doc) => Todo.fromJson({
-           ...doc.data(),
-           'id': doc.id,
-           'createdAt': (doc.data()['createdAt'] as Timestamp).toDate().toIso8601String(),
-         })).toList();
+         print('SyncMyTodos: Received ${snapshot.docs.length} docs'); // DEBUG
+         _myTodos = snapshot.docs.map((doc) {
+           final data = doc.data();
+           return Todo.fromJson({
+             ...data,
+             'id': doc.id,
+             // Handle null timestamp (latency compensation or bad data)
+             'createdAt': (data['createdAt'] is Timestamp) 
+                 ? (data['createdAt'] as Timestamp).toDate().toIso8601String() 
+                 : DateTime.now().toIso8601String(),
+           });
+         }).toList();
          notifyListeners();
        });
   }
@@ -36,11 +43,16 @@ class TodoProvider with ChangeNotifier {
          // Filter out our own todos locally if we want separate lists
          _teamTodos = snapshot.docs
              .where((doc) => doc.data()['createdBy'] != currentUserId)
-             .map((doc) => Todo.fromJson({
-               ...doc.data(),
-               'id': doc.id,
-               'createdAt': (doc.data()['createdAt'] as Timestamp).toDate().toIso8601String(),
-             })).toList();
+             .map((doc) {
+               final data = doc.data();
+               return Todo.fromJson({
+                 ...data,
+                 'id': doc.id,
+                 'createdAt': (data['createdAt'] is Timestamp) 
+                     ? (data['createdAt'] as Timestamp).toDate().toIso8601String() 
+                     : DateTime.now().toIso8601String(),
+               });
+             }).toList();
          notifyListeners();
        });
   }
@@ -112,5 +124,9 @@ class TodoProvider with ChangeNotifier {
       'content': content,
       'createdAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> deleteTodo(String todoId) async {
+    await _db.collection('todos').doc(todoId).delete();
   }
 }

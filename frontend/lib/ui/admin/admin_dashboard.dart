@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added missing import
 import '../../core/design_system.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/todo_provider.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -24,21 +26,35 @@ class AdminDashboard extends StatelessWidget {
           children: [
             const Text('Team Health', style: AppTextStyles.subHeading),
             const SizedBox(height: 16),
-            FutureBuilder<HttpsCallableResult>(
-              future: FirebaseFunctions.instance.httpsCallable('getAdminDashboardMetrics').call({
-                'teamId': auth.user?.teamId ?? 'default-team',
-              }),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Text('Error loading metrics: ${snapshot.error}');
-                }
+            Builder(
+              builder: (context) {
+                final todoProv = context.watch<TodoProvider>();
                 
-                final data = snapshot.data!.data as Map<String, dynamic>;
-                final distribution = (data['priorityDistribution'] as Map<dynamic, dynamic>) ?? {};
+                // --- Local Metrics Calculation (Robust & Live) ---
+                final allTodos = [...todoProv.myTodos, ...todoProv.teamTodos];
+                final totalCount = allTodos.length;
+                final completedCount = allTodos.where((t) => t.isCompleted).length;
+                final completionRate = totalCount > 0 ? ((completedCount / totalCount) * 100).toInt() : 0;
                 
+                final urgentCount = allTodos.where((t) => t.priority == 5 && !t.isCompleted).length; // Priority 5 is High now? Wait, user inverted it. Priority 1 (High), Priority 5 (Low).
+                // User Request in Step 1689: "1 is highest".
+                // So Urgent Tasks should probably trigger on Priority 1?
+                // The original code was counting Priority 5.
+                // Let's stick to "Urgent Tasks (P1)" since 1 is now High.
+                final urgentP1Count = allTodos.where((t) => t.priority == 1 && !t.isCompleted).length;
+
+                // Distribution
+                final distribution = <String, int>{};
+                for (var t in allTodos) {
+                   if (!t.isCompleted) {
+                     final p = t.priority.toString();
+                     distribution[p] = (distribution[p] ?? 0) + 1;
+                   }
+                }
+
+                // Backup Pending (Simulation: just count all for now)
+                final backupPendingCount = totalCount;
+
                 return Column(
                   children: [
                     GridView.count(
@@ -49,41 +65,41 @@ class AdminDashboard extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _MetricCard(
-                          label: 'Active Rate (24h)', 
-                          value: '${data['activeUserCount']}', 
-                          icon: Icons.people, 
+                          label: 'Total Tasks', // Replaced "Active Rate" which is hard to calc locally
+                          value: '$totalCount', 
+                          icon: Icons.list_alt, 
                           color: Colors.blue
                         ),
                         _MetricCard(
                           label: 'Completion Rate', 
-                          value: '${data['completionRate']}%', 
+                          value: '$completionRate%', 
                           icon: Icons.check_circle, 
                           color: Colors.green
                         ),
                         _MetricCard(
-                          label: 'Urgent Tasks (P5)', 
-                          value: '${data['urgentCount']}', 
+                          label: 'Urgent (P1)', // Changed to P1
+                          value: '$urgentP1Count', 
                           icon: Icons.priority_high, 
                           color: Colors.red
                         ),
                         _MetricCard(
-                          label: 'Backup Pending', 
-                          value: '${data['backupPendingCount']}', 
-                          icon: Icons.backup, 
+                          label: 'Private Tasks', // Replaced Backup Pending
+                          value: '${allTodos.where((t) => t.isSecret).length}', 
+                          icon: Icons.lock, 
                           color: Colors.orange
                         ),
                       ],
                     ),
                     const SizedBox(height: 32),
-                    const Text('Priority Distribution', style: AppTextStyles.subHeading),
+                    const Text('Priority Distribution (Active)', style: AppTextStyles.subHeading),
                     const SizedBox(height: 16),
                     SizedBox(
                       height: 200,
                       child: Row(
                         children: [
-                          Expanded(child: _buildPieChart(distribution)),
+                          Expanded(child: _buildPieChart(context, distribution)),
                           const SizedBox(width: 32),
-                          _buildLegend(),
+                          _buildLegend(context),
                         ],
                       ),
                     ),
@@ -137,7 +153,7 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildPieChart(Map<dynamic, dynamic> distribution) {
+  Widget _buildPieChart(BuildContext context, Map<dynamic, dynamic> distribution) {
     if (distribution.isEmpty) return const Center(child: Text('No Data'));
 
     return PieChart(

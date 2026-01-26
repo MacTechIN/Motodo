@@ -25,4 +25,22 @@ class User {
       statusMessage: json['statusMessage'],
     );
   }
+
+  User copyWith({
+    String? id,
+    String? email,
+    String? displayName,
+    String? teamId,
+    String? role,
+    String? statusMessage,
+  }) {
+    return User(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      teamId: teamId ?? this.teamId,
+      role: role ?? this.role,
+      statusMessage: statusMessage ?? this.statusMessage,
+    );
+  }
 }

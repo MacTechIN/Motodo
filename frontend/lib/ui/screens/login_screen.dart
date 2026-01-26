@@ -13,17 +13,85 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _teamNameController = TextEditingController();
+  final _nameController = TextEditingController();
+  
   bool _isLoading = false;
+  bool _isLogin = true; // Toggle between Login and Sign Up
 
-  void _handleLogin() async {
+  // ... (Google Login omitted for brevity, same as before)
+  void _handleGoogleLogin() async {
     setState(() => _isLoading = true);
     final success = await context.read<AuthProvider>().signInWithGoogle();
     setState(() => _isLoading = false);
 
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Login failed. Please check your credentials.')),
+        const SnackBar(
+          content: Text('Google Login is not configured yet. Please use Email/Password.'),
+          backgroundColor: Colors.orange,
+        ),
       );
+    }
+  }
+
+  void _handleSubmit() async {
+    if (_isLogin) {
+      _handleLogin();
+    } else {
+      _handleSignUp();
+    }
+  }
+
+  void _handleLogin() async {
+     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter email and password.')));
+      return;
+    }
+    setState(() => _isLoading = true);
+    final success = await context.read<AuthProvider>().signInWithEmail(_emailController.text, _passwordController.text);
+    setState(() => _isLoading = false);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login failed. Check your password.')));
+    }
+  }
+
+  void _handleSignUp() async {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty || _teamNameController.text.isEmpty || _nameController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields (Name, Team, Email, Password).')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    
+    // 1. Create User with Name
+    final errorMsg = await context.read<AuthProvider>().registerWithEmail(
+      _emailController.text, 
+      _passwordController.text,
+      _nameController.text // Pass Name
+    );
+    
+    if (errorMsg != null) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+         if (errorMsg == 'already-in-use') {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Email already in use. Please login.')));
+         } else if (errorMsg == 'weak-password') {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⚠️ Password must be at least 6 characters.')));
+         } else {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $errorMsg')));
+         }
+      }
+      return;
+    }
+
+    // 2. Create Team 
+    await context.read<AuthProvider>().createTeam(_teamNameController.text);
+
+    setState(() => _isLoading = false);
+    
+    if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Team Account Created! Welcome!')));
     }
   }
 
@@ -35,13 +103,34 @@ class _LoginScreenState extends State<LoginScreen> {
           constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(32),
           child: Column(
-            mainAxisAlignment: Main byte.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text('Motodo', style: AppTextStyles.heading, textAlign: TextAlign.center),
               const SizedBox(height: 8),
               const Text('B2B Collaborative Task Management', style: AppTextStyles.body, textAlign: TextAlign.center),
               const SizedBox(height: 48),
+              
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: Column(
+                  children: [
+                    TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(labelText: 'Your Name', border: OutlineInputBorder()),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _teamNameController,
+                      decoration: const InputDecoration(labelText: 'Team Name', border: OutlineInputBorder()), // Ensure this is not 'Default Team'
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+                crossFadeState: _isLogin ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+                duration: const Duration(milliseconds: 300),
+              ),
+
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
@@ -53,19 +142,32 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _isLoading ? null : _handleLogin,
-                icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg', height: 20), // In production use an asset
-                label: const Text('Sign in with Google'),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: Colors.white,
+                  backgroundColor: AppColors.priority5,
                   foregroundColor: AppColors.textPrimary,
                 ),
+                child: Text(_isLogin ? 'Login' : 'Create Team Account'),
               ),
+              const SizedBox(height: 16),
+              if (_isLogin) ...[
+                OutlinedButton.icon(
+                  onPressed: _isLoading ? null : _handleGoogleLogin,
+                  icon: const Icon(Icons.login), 
+                  label: const Text('Sign in with Google'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               TextButton(
-                onPressed: () {},
-                child: const Text('Create a new team account'),
+                onPressed: () {
+                  setState(() => _isLogin = !_isLogin);
+                },
+                child: Text(_isLogin ? 'Create a new team account' : 'Already have an account? Login'),
               ),
             ],
           ),

@@ -21,9 +21,9 @@ class TimelineView extends StatelessWidget {
         // Listen to completed tasks in real-time
         stream: FirebaseFirestore.instance
             .collection('todos')
-            .where('teamId', '==', teamId)
-            .where('isCompleted', '==', true)
-            .where('isSecret', '==', false) // Don't show secret tasks in public timeline
+            .where('teamId', isEqualTo: teamId)
+            .where('isCompleted', isEqualTo: true)
+            .where('isSecret', isEqualTo: false) // Don't show secret tasks in public timeline
             .orderBy('completedAt', descending: true)
             .limit(20)
             .snapshots(),

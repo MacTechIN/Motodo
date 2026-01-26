@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872595389134",
+    "project_id": "motodo-app",
+    "storage_bucket": "motodo-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872595389134:android:42c4acf757a1c53db62e9f",
+        "android_client_info": {
+          "package_name": "com.motodo.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAb5ZHjSN_OSK0dOtXfuWCijGc6WS9DVa8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

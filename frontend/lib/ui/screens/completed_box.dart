@@ -18,7 +18,24 @@ class CompletedBox extends StatelessWidget {
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: completedTodos.length,
-              itemBuilder: (context, index) => TodoCard(todo: completedTodos[index]),
+              itemBuilder: (context, index) {
+                final todo = completedTodos[index];
+                return Dismissible(
+                  key: Key(todo.id),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  onDismissed: (direction) {
+                    context.read<TodoProvider>().deleteTodo(todo.id);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task deleted forever')));
+                  },
+                  child: TodoCard(todo: todo),
+                );
+              },
             ),
     );
   }

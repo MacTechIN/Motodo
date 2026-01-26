@@ -39,6 +39,52 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "users",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "teamId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "lastLoginAt",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "todos",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "teamId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "priority",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "isCompleted",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "todos",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "teamId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

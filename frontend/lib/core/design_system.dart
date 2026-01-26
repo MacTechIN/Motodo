@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Pastel Palette for Priorities
-  static const Color priority1 = Color(0xFFE8F5E9); // Soft Mint (Level 1)
-  static const Color priority2 = Color(0xFFE3F2FD); // Sky Blue (Level 2)
-  static const Color priority3 = Color(0xFFFFFDE7); // Pale Yellow (Level 3)
-  static const Color priority4 = Color(0xFFFFF3E0); // Peach Orange (Level 4)
-  static const Color priority5 = Color(0xFFFCE4EC); // Dusty Rose (Level 5)
+  static const Color priority1 = Color(0xFFFCE4EC); // Dusty Rose (High Importance)
+  static const Color priority2 = Color(0xFFFFF3E0); // Peach Orange 
+  static const Color priority3 = Color(0xFFFFFDE7); // Pale Yellow
+  static const Color priority4 = Color(0xFFE3F2FD); // Sky Blue 
+  static const Color priority5 = Color(0xFFE8F5E9); // Soft Mint (Low Importance)
 
   static const Color background = Color(0xFFF8F9FA);
   static const Color surface = Colors.white;

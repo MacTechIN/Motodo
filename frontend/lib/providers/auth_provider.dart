@@ -25,12 +25,57 @@ class AuthProvider with ChangeNotifier {
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     _firebaseUser = firebaseUser;
     if (firebaseUser != null) {
-      _user = model.User(
-        id: firebaseUser.uid,
-        email: firebaseUser.email ?? '',
-        displayName: firebaseUser.displayName ?? 'User',
-        role: 'member', // Default role; fetch from Firestore in production
-      );
+      try {
+        // Fetch detailed profile from Firestore (Role, Team ID, etc.)
+        final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
+        if (doc.exists) {
+          final data = doc.data()!;
+          _user = model.User.fromJson({
+            ...data,
+            'id': firebaseUser.uid,
+            'email': data['email'] ?? firebaseUser.email ?? '', 
+            'displayName': data['displayName'] ?? firebaseUser.displayName ?? 'User',
+          });
+        } else {
+          // Doc missing? Create it now (Self-Repair)
+          final newUser = model.User(
+            id: firebaseUser.uid,
+            email: firebaseUser.email ?? '',
+            displayName: firebaseUser.displayName ?? 'User',
+            role: 'member',
+          );
+          
+          await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+             'email': newUser.email,
+             'displayName': newUser.displayName,
+             'role': newUser.role,
+             'createdAt': FieldValue.serverTimestamp(),
+          });
+          
+          _user = newUser;
+        }
+      } catch (e) {
+        print('Error fetching/creating user profile: $e');
+        // Fallback on error (still create in-memory user so app doesn't crash)
+        _user = model.User(
+          id: firebaseUser.uid,
+          email: firebaseUser.email ?? '',
+          displayName: firebaseUser.displayName ?? 'User',
+          role: 'member',
+        );
+      }
+      
+      // Auto-Create Team if Missing (Self-Healing)
+      if (_user?.teamId == null) {
+        try {
+          print('User has no team. Auto-creating Personal Team...');
+          final teamName = "${_user?.displayName ?? 'My'}'s Team";
+          await createTeam(teamName); 
+        } catch (e) {
+          print('Error auto-creating team: $e');
+        }
+      }
+
       _syncTeamSettings(); // Fetch Pro settings
     } else {
       _user = null;
@@ -154,11 +199,11 @@ class AuthProvider with ChangeNotifier {
         'plan': 'free',
         'stats': {'totalCount': 0, 'totalCompleted': 0}
       });
-      // Optionally update user's teamId
-      await FirebaseFirestore.instance.collection('users').doc(_user!.id).update({
+      // Use set(merge: true) to ensure it works even if user doc was missing
+      await FirebaseFirestore.instance.collection('users').doc(_user!.id).set({
         'teamId': teamRef.id,
         'role': 'admin' 
-      });
+      }, SetOptions(merge: true));
 
       // Update local state immediately
       _user = _user!.copyWith(teamId: teamRef.id, role: 'admin');

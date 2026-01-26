@@ -10,6 +10,8 @@ import 'ui/screens/dashboard_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  // Enable offline persistence
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
   runApp(
     MultiProvider(
       providers: [

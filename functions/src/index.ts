@@ -145,41 +145,71 @@ export const aggregateTeamStats = firestore
 /**
  * Admin-only CSV Export
  */
+/**
+ * Admin-only CSV Export
+ */
 export const exportTeamToCSV = onCall(async (request) => {
     if (!request.auth || request.auth.token.role !== "admin") {
         throw new HttpsError("permission-denied", "Admin ONLY.");
     }
 
     const teamId = request.data.teamId;
-    const snapshot = await admin.firestore().collection("todos").where("teamId", "==", teamId).get();
+    const db = admin.firestore();
+
+    // 1. Fetch Todos
+    const snapshot = await db.collection("todos").where("teamId", "==", teamId).get();
+
+    // 2. Fetch Users Map for Name Resolution
+    // (Optimization: In a huge app, we might store userName in Todo or fetch in batches. 
+    // For MVP/SMB, fetching team users is acceptable)
+    const usersSnap = await db.collection("users").where("teamId", "==", teamId).get();
+    const userMap: { [uid: string]: string } = {};
+    usersSnap.forEach(doc => {
+        const u = doc.data();
+        userMap[doc.id] = u.displayName || "Unknown User";
+    });
+
     const todos = snapshot.docs.map(doc => {
         const d = doc.data();
 
         // Calculate Duration
-        let durationHours = "";
+        let durationHours = "0.00";
         const createdAt = d.createdAt?.toDate();
-        const completedAt = d.completedAt?.toDate(); // captured in completedAt field
+        const completedAt = d.completedAt?.toDate();
 
         if (d.isCompleted && createdAt && completedAt) {
             const diffMs = completedAt.getTime() - createdAt.getTime();
             durationHours = (diffMs / (1000 * 60 * 60)).toFixed(2);
         }
 
+        // Priority to Text
+        const priorityMap: { [key: number]: string } = {
+            5: "매우 높음 (Very High)",
+            4: "높음 (High)",
+            3: "보통 (Medium)",
+            2: "낮음 (Low)",
+            1: "매우 낮음 (Very Low)"
+        };
+        const priorityText = priorityMap[d.priority] || "보통";
+
+        // Privacy Masking (Strict Admin Report)
+        // If secret, we show "Private Task" as requested in specs.
+        const content = d.isSecret ? "🔒 개인 업무 (Private Task)" : d.content;
+        const privacyStatus = d.isSecret ? "Personal" : "Public";
+
         return {
-            id: doc.id,
-            content: d.content,
-            priority: d.priority,
-            isCompleted: d.isCompleted,
-            isSecret: d.isSecret, // Include secret status
-            createdBy: d.createdBy,
+            userName: userMap[d.createdBy] || d.createdBy, // Name Resolution
+            content: content,
+            priority: priorityText, // Text Conversion
+            duration: durationHours, // Duration
+            privacy: privacyStatus, // Privacy Status
             createdAt: createdAt?.toISOString() || "",
-            completedAt: completedAt?.toISOString() || "", // New field
-            durationHours: durationHours // New Metric
+            completedAt: completedAt?.toISOString() || ""
         };
     });
 
     try {
-        const fields = ["id", "content", "priority", "isCompleted", "isSecret", "createdBy", "createdAt", "completedAt", "durationHours"];
+        const fields = ["userName", "content", "priority", "duration", "privacy", "createdAt", "completedAt"];
         const parser = new Parser({ fields });
         const csv = parser.parse(todos);
         return { success: true, csv };

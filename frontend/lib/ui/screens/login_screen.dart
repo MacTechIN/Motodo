@@ -17,10 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleLogin() async {
     setState(() => _isLoading = true);
-    final success = await context.read<AuthProvider>().login(
-      _emailController.text,
-      _passwordController.text,
-    );
+    final success = await context.read<AuthProvider>().signInWithGoogle();
     setState(() => _isLoading = false);
 
     if (!success && mounted) {
@@ -56,16 +53,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: _isLoading ? null : _handleLogin,
+                icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg', height: 20), // In production use an asset
+                label: const Text('Sign in with Google'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: AppColors.priority5,
+                  backgroundColor: Colors.white,
                   foregroundColor: AppColors.textPrimary,
                 ),
-                child: _isLoading 
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
-                  : const Text('Login'),
               ),
               TextButton(
                 onPressed: () {},

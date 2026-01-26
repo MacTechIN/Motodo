@@ -19,9 +19,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final token = context.read<AuthProvider>().token;
-      if (token != null) {
-        context.read<TodoProvider>().fetchTodos(token);
+      final auth = context.read<AuthProvider>();
+      if (auth.isAuthenticated) {
+        context.read<TodoProvider>().syncMyTodos(auth.user!.id);
+        if (auth.user?.teamId != null) {
+          context.read<TodoProvider>().syncTeamTodos(auth.user!.teamId!, auth.user!.id);
+        }
       }
     });
   }
@@ -197,9 +200,10 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
           ElevatedButton(
             onPressed: () {
               if (_controller.text.isNotEmpty) {
-                final token = context.read<AuthProvider>().token;
+                final auth = context.read<AuthProvider>();
                 context.read<TodoProvider>().addTodo(
-                  token!,
+                  auth.user!.id,
+                  auth.user!.teamId ?? 'default-team',
                   _controller.text,
                   _priority,
                   _isSecret,

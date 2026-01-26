@@ -46,7 +46,9 @@ class TodoCard extends StatelessWidget {
                 Checkbox(
                   value: todo.isCompleted,
                   onChanged: (val) {
-                    // Update logic
+                    if (val != null) {
+                      context.read<TodoProvider>().toggleComplete(todo.id, val);
+                    }
                   },
                 ),
               ],

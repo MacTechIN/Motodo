@@ -1,53 +1,58 @@
-import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../models/user.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../models/user.dart' as model;
 
 class AuthProvider with ChangeNotifier {
-  User? _user;
-  String? _token;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  User? get user => _user;
-  String? get token => _token;
-  bool get isAuthenticated => _token != null;
+  User? _firebaseUser;
+  model.User? _user;
 
-  // For MVP, backend is at localhost:3000
-  final String _baseUrl = 'http://localhost:3000';
+  model.User? get user => _user;
+  bool get isAuthenticated => _firebaseUser != null;
 
-  async Future<bool> login(String email, String password) async {
+  AuthProvider() {
+    _auth.authStateChanges().listen(_onAuthStateChanged);
+  }
+
+  Future<void> _onAuthStateChanged(User? firebaseUser) async {
+    _firebaseUser = firebaseUser;
+    if (firebaseUser != null) {
+      _user = model.User(
+        id: firebaseUser.uid,
+        email: firebaseUser.email ?? '',
+        displayName: firebaseUser.displayName ?? 'User',
+        role: 'member', // Default role; fetch from Firestore in production
+      );
+    } else {
+      _user = null;
+    }
+    notifyListeners();
+  }
+
+  Future<bool> signInWithGoogle() async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'email': email, 'password': password}),
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return false;
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _token = data['access_token'];
-        
-        // Fetch profile (for MVP, we assume user data is in the token payload or fetch separately)
-        // Here we just mock the user data from response or payload
-        _user = User(
-          id: 'mock-id',
-          email: email,
-          displayName: 'User',
-          role: 'member',
-        );
-        
-        notifyListeners();
-        return true;
-      }
-      return false;
+      await _auth.signInWithCredential(credential);
+      return true;
     } catch (e) {
-      print('Login error: $e');
+      print('Google Sign-In error: $e');
       return false;
     }
   }
 
-  void logout() {
-    _user = null;
-    _token = null;
-    notifyListeners();
+  Future<void> logout() async {
+    await _googleSignIn.signOut();
+    await _auth.signOut();
   }
 }

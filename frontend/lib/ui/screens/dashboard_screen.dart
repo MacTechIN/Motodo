@@ -60,33 +60,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth > 800) {
-            return Row(
-              children: [
-                Expanded(child: _buildMyTodos(todoProv)),
-                const VerticalDivider(width: 1),
-                Expanded(child: _buildTeamTodos(todoProv)),
-              ],
-            );
-          } else {
-            return SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildMyTodos(todoProv),
-                  const Divider(),
-                  _buildTeamTodos(todoProv),
-                ],
-              ),
-            );
-          }
-        },
+      body: Column(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth > 800) {
+                  return Row(
+                    children: [
+                      Expanded(child: SingleChildScrollView(child: _buildMyTodos(todoProv))),
+                      const VerticalDivider(width: 1),
+                      Expanded(child: SingleChildScrollView(child: _buildTeamTodos(todoProv))),
+                    ],
+                  );
+                } else {
+                  return SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _buildMyTodos(todoProv),
+                        const Divider(),
+                        _buildTeamTodos(todoProv),
+                      ],
+                    ),
+                  );
+                }
+              },
+            ),
+          ),
+          _buildTeamTicker(todoProv),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTodoModal(context),
         backgroundColor: AppColors.priority5,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildHeader(TodoProvider prov) {
+    // Progress Bar Calculation
+    final total = prov.myTodos.length;
+    final completed = prov.myTodos.where((t) => t.isCompleted).length;
+    final progress = total > 0 ? completed / total : 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('My Focus', style: AppTextStyles.heading),
+              Text('${(progress * 100).toInt()}% Done', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.priority5)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            backgroundColor: Colors.grey.shade100,
+            color: AppColors.priority5,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamTicker(TodoProvider prov) {
+    // Show last 3 completed team tasks
+    final completedTeamTodos = prov.teamTodos
+        .where((t) => t.isCompleted)
+        .take(3)
+        .toList();
+
+    if (completedTeamTodos.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      color: AppColors.priority1,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active, size: 16, color: Colors.green),
+          const SizedBox(width: 8),
+          const Text('Team Activity: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          Expanded(
+            child: SizedBox(
+               height: 20,
+               child: ListView.builder(
+                 scrollDirection: Axis.horizontal,
+                 itemCount: completedTeamTodos.length,
+                 itemBuilder: (context, index) {
+                   return Padding(
+                     padding: const EdgeInsets.only(right: 16.0),
+                     child: Text(
+                       '${completedTeamTodos[index].content} done',
+                       style: const TextStyle(fontSize: 12),
+                     ),
+                   );
+                 },
+               ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -97,8 +176,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('My Tasks', style: AppTextStyles.subHeading),
+          _buildHeader(prov),
           const SizedBox(height: 16),
+          // Sort by priority descending (5 -> 1)
           ...prov.myTodos.map((todo) => TodoCard(todo: todo)).toList(),
         ],
       ),
@@ -113,7 +193,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           const Text('Team Collaboration', style: AppTextStyles.subHeading),
           const SizedBox(height: 16),
-          ...prov.teamTodos.map((todo) => TodoCard(todo: todo)).toList(),
+          Expanded( // Make scrollable separately if needed, or just list
+             child: Column(
+               children: prov.teamTodos.map((todo) => TodoCard(todo: todo)).toList(),
+             ),
+          ),
         ],
       ),
     );

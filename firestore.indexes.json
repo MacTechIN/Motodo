@@ -1,0 +1,41 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "todos",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "teamId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "isSecret",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "priority",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "todos",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "createdBy",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "priority",
+                    "order": "DESCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}

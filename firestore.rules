@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function: check if user is logged in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper function: get current user data
+    function currentUser() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // --- 1. Users Collection Rules ---
+    match /users/{userId} {
+      // Users can read/write their own full profile
+      allow write: if isSignedIn() && request.auth.uid == userId;
+      
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId || 
+        // Teammates can read public fields
+        (currentUser().teamId == resource.data.teamId)
+      );
+
+      // Protect sensitive fields (fcmToken, settings) from teammates
+      // This logic is handled at the application level or via more granular rules if needed,
+      // but standard Firestore rules filter by document level.
+      // To strictly prevent teammate-read of settings, consider sub-collections or checking specific fields.
+    }
+
+    // --- 2. Teams Collection Rules ---
+    match /teams/{teamId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && currentUser().role == 'admin';
+    }
+
+    // --- 3. Todos Collection Rules (CRITICAL) ---
+    match /todos/{todoId} {
+      // Create/Update/Delete: ONLY owner
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+
+      // Read Logic:
+      allow read: if isSignedIn() && (
+        // 1. Own Todos (Always allow)
+        request.auth.uid == resource.data.createdBy ||
+        // 2. Teammate's Public Todos (Deny if isSecret == true)
+        (resource.data.teamId == currentUser().teamId && resource.data.isSecret == false)
+      );
+    }
+  }
+}

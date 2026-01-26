@@ -1,0 +1,45 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  displayName   String
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
+  role          String    @default("member") // admin | member
+  lastLoginAt   DateTime?
+  statusMessage String?
+  todos         Todo[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String
+  users     User[]
+  todos     Todo[]
+  createdAt DateTime @default(now())
+}
+
+model Todo {
+  id          String    @id @default(uuid())
+  content     String
+  priority    Int       @default(3) // 1 to 5
+  isSecret    Boolean   @default(false)
+  isCompleted Boolean   @default(false)
+  createdBy   String
+  author      User      @relation(fields: [createdBy], references: [id])
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id])
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+}

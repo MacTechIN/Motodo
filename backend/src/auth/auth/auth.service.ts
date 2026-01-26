@@ -13,12 +13,13 @@ export class AuthService {
     email: string,
     pass: string,
   ): Promise<Record<string, unknown> | null> {
-    const user = await (this.prisma as any).user.findUnique({
+    const user = (await (this.prisma as any).user.findUnique({
       where: { email },
-    });
-    if (user && (user as { password?: string }).password === pass) {
-      const { password: __, ...result } = user as { password?: string };
-      return result as Record<string, unknown>;
+    })) as Record<string, unknown> | null;
+    if (user && user.password === pass) {
+      const result = { ...user };
+      delete result.password;
+      return result;
     }
     return null;
   }

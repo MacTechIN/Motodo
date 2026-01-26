@@ -18,11 +18,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     teamId: string | null;
     role: string;
   }) {
-    return {
+    return await Promise.resolve({
       id: payload.sub,
       email: payload.email,
       teamId: payload.teamId,
       role: payload.role,
-    };
+    });
   }
 }

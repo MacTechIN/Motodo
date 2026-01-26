@@ -42,9 +42,12 @@ class _AdminLayoutState extends State<AdminLayout> {
                   },
                   extended: constraints.maxWidth > 1200, // Show labels on very wide screens
                   labelType: constraints.maxWidth > 1200 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
-                  leading: const Padding(
-                    padding: EdgeInsets.only(bottom: 24.0, top: 24.0),
-                    child: CircleAvatar(backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=32')),
+                  leading: Padding(
+                    padding: const EdgeInsets.only(bottom: 24.0, top: 24.0),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.teal.shade100,
+                      child: const Icon(Icons.person, color: Colors.teal),
+                    ),
                   ),
                   destinations: const <NavigationRailDestination>[
                     NavigationRailDestination(

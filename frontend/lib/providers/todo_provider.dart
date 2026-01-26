@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../models/todo.dart';
@@ -6,13 +7,17 @@ class TodoProvider with ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   List<Todo> _myTodos = [];
   List<Todo> _teamTodos = [];
+  
+  StreamSubscription? _myTodosSub;
+  StreamSubscription? _teamTodosSub;
 
   List<Todo> get myTodos => _myTodos;
   List<Todo> get teamTodos => _teamTodos;
 
   // Real-time stream for My Todos
   void syncMyTodos(String userId) {
-    _db.collection('todos')
+    _myTodosSub?.cancel();
+    _myTodosSub = _db.collection('todos')
        .where('createdBy', isEqualTo: userId)
        .orderBy('priority', descending: false) // 1 (High) -> 5 (Low)
        .snapshots()
@@ -35,7 +40,8 @@ class TodoProvider with ChangeNotifier {
 
   // Real-time stream for Team Todos (Only Public)
   void syncTeamTodos(String teamId, String currentUserId) {
-    _db.collection('todos')
+    _teamTodosSub?.cancel();
+    _teamTodosSub = _db.collection('todos')
        .where('teamId', isEqualTo: teamId)
        .where('isSecret', isEqualTo: false)
        .snapshots()
@@ -55,6 +61,30 @@ class TodoProvider with ChangeNotifier {
              }).toList();
          notifyListeners();
        });
+  }
+  
+  bool _disposed = false;
+
+  void clear() {
+    _myTodosSub?.cancel();
+    _teamTodosSub?.cancel();
+    _myTodos = [];
+    _teamTodos = [];
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    clear();
+    super.dispose();
+  }
+  
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
   }
 
   Future<bool> addTodo(String userId, String teamId, String content, int priority, bool isSecret, {String? attachmentUrl}) async {

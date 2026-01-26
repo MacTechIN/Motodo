@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -18,16 +19,31 @@ class AuthProvider with ChangeNotifier {
   Map<int, Color>? _customColors;
   Map<int, Color>? get customColors => _customColors;
   
-  bool _isSyncing = false; // Lock to prevent race conditions
+  // bool _isSyncing = false; // Removed lock to allow stream events
+  StreamSubscription? _teamSettingsSub;
+  bool _disposed = false; // Safety guard
 
   AuthProvider() {
     _auth.userChanges().listen(_onAuthStateChanged);
   }
+  
+  @override
+  void dispose() {
+    _disposed = true;
+    _teamSettingsSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
-    if (_isSyncing) return; // Prevent loop/concurrent updates
-    _isSyncing = true;
-    
+    if (_disposed) return;
+
     try {
       _firebaseUser = firebaseUser;
       if (firebaseUser != null) {
@@ -36,11 +52,6 @@ class AuthProvider with ChangeNotifier {
           final doc = await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).get();
           if (doc.exists) {
             final data = doc.data()!;
-            
-            // Optimization: If local user is already up-to-date with Team ID, don't overwrite with Stale data?
-            // But usually Firestore is truth. 
-            // We just proceed. use set(merge) elsewhere ensures we fix eventually.
-            
             _user = model.User.fromJson({
               ...data,
               'id': firebaseUser.uid,
@@ -75,10 +86,7 @@ class AuthProvider with ChangeNotifier {
         }
         
         // Auto-Create Team if Missing (Self-Healing)
-        // Check if we already have a team locally to avoid redundant API call if Firestore was just stale
         if (_user?.teamId == null) {
-           // Double check Firestore one last time or just proceed?
-           // Proceeding is fine but let's be careful.
            try {
               print('User has no team. Auto-creating Personal Team...');
               final teamName = "${_user?.displayName ?? 'My'}'s Team";
@@ -92,20 +100,21 @@ class AuthProvider with ChangeNotifier {
       } else {
         _user = null;
         _customColors = null;
+        _teamSettingsSub?.cancel();
       }
       notifyListeners();
-    } finally {
-      _isSyncing = false;
+    } catch (e) {
+      print('Auth State Change Error: $e');
     }
   }
 
   void _syncTeamSettings() {
-     // ... (Keep existing _syncTeamSettings) ...
-     if (_user?.teamId == null) return; // Guard
-     
-    FirebaseFirestore.instance
+     if (_user?.teamId == null) return; 
+     _teamSettingsSub?.cancel();
+
+    _teamSettingsSub = FirebaseFirestore.instance
         .collection('teams')
-        .doc(_user?.teamId ?? 'default-team') 
+        .doc(_user!.teamId) 
         .snapshots()
         .listen((snapshot) {
            if (snapshot.exists && snapshot.data()!.containsKey('customColors')) {

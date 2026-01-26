@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/design_system.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/todo_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -78,6 +79,7 @@ class SettingsScreen extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
+                    context.read<TodoProvider>().clear(); // Stop streams logs
                     context.read<AuthProvider>().logout();
                   },
                   icon: const Icon(Icons.logout, color: Colors.red),

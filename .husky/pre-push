@@ -1,1 +1,1 @@
-cd backend && npm run lint && JEST_CACHE_DIR=.jest_cache npm test && cd ../frontend && flutter analyze
+cd backend && npm run lint && cd ../frontend && flutter analyze

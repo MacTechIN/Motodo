@@ -7,14 +7,14 @@ export class AdminService {
     constructor(private prisma: PrismaService) { }
 
     async exportTeamTodosCsv(teamId: string) {
-        const todos = await this.prisma.todo.findMany({
+        const todos = await (this.prisma as any).todo.findMany({
             where: { teamId: teamId },
             include: { author: true },
             orderBy: { createdAt: 'desc' },
         });
 
-        const data = todos.map(todo => ({
-            Date: todo.createdAt.toISOString().split('T')[0],
+        const data = (todos as any[]).map((todo) => ({
+            Date: (todo.createdAt as Date).toISOString().split('T')[0],
             'User Name': todo.author.displayName,
             Content: todo.content,
             Priority: todo.priority,

@@ -33,7 +33,12 @@ class AppTextStyles {
   );
 }
 
-Color getPriorityColor(int priority) {
+Color getPriorityColor(int priority, [Map<int, Color>? customColors]) {
+  if (customColors != null && customColors.containsKey(priority)) {
+    return customColors[priority]!;
+  }
+
+  // Fallback to Default Pastel System
   switch (priority) {
     case 1: return AppColors.priority1;
     case 2: return AppColors.priority2;

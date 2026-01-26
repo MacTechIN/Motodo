@@ -231,3 +231,50 @@ export const updateMemberStats = firestore
             lastActivityAt: admin.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
     });
+
+/**
+ * Weekly Analytics Report (Pro Feature)
+ * Scheduled to run every Monday at 9:00 AM.
+ * (Note: For MVP, we log the report. In prod, use Nodemailer/SendGrid)
+ */
+export const sendWeeklyReport = onCall(async (request) => {
+    // In a real scheduled function, we wouldn't use onCall, but onSchedule.
+    // implementing onCall here for easy manual testing by the user/admin.
+
+    // 1. Scan all PRO teams
+    // For MVP, just specific teamId provided or all teams
+    const db = admin.firestore();
+    const teamsSnap = await db.collection("teams").get();
+
+    const reports: any[] = [];
+
+    for (const teamDoc of teamsSnap.docs) {
+        const teamData = teamDoc.data();
+        if (teamData.plan !== 'pro') continue; // Only Pro teams
+
+        const teamId = teamDoc.id;
+
+        // 2. Aggregate Weekly Stats
+        const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const completedSnap = await db.collection("todos")
+            .where("teamId", "==", teamId)
+            .where("isCompleted", "==", true)
+            .where("completedAt", ">=", lastWeek)
+            .get();
+
+        const completedCount = completedSnap.size;
+
+        // 3. Mock Email Sending
+        const report = {
+            teamId,
+            recipient: "admin@motodo.com", // In prod, teamData.adminEmail
+            subject: `[Motodo] Weekly Analytics for ${teamData.name || 'Team'}`,
+            body: `You completed ${completedCount} tasks last week! Great job.`
+        };
+
+        console.log("SENDING EMAIL:", report);
+        reports.push(report);
+    }
+
+    return { success: true, reportsSent: reports.length };
+});

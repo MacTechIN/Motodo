@@ -1,6 +1,6 @@
 {
   "name": "motodo",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "**Motodo**는 \"내가 적으면 팀원이 즉시 아는\" 실시간 초투명성을 지향하는 B2B SaaS 협업 툴 (Google Ecosystem Edition) 입니다.",
   "main": "index.js",
   "scripts": {

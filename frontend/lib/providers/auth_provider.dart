@@ -12,6 +12,10 @@ class AuthProvider with ChangeNotifier {
 
   model.User? get user => _user;
   bool get isAuthenticated => _firebaseUser != null;
+  
+  // Dynamic Color System (Pro)
+  Map<int, Color>? _customColors;
+  Map<int, Color>? get customColors => _customColors;
 
   AuthProvider() {
     _auth.authStateChanges().listen(_onAuthStateChanged);
@@ -26,10 +30,27 @@ class AuthProvider with ChangeNotifier {
         displayName: firebaseUser.displayName ?? 'User',
         role: 'member', // Default role; fetch from Firestore in production
       );
+      _syncTeamSettings(); // Fetch Pro settings
     } else {
       _user = null;
+      _customColors = null;
     }
     notifyListeners();
+  }
+
+  void _syncTeamSettings() {
+     // Listen to Team Document for "customColors" settings
+    FirebaseFirestore.instance
+        .collection('teams')
+        .doc(_user?.teamId ?? 'default-team') 
+        .snapshots()
+        .listen((snapshot) {
+           if (snapshot.exists && snapshot.data()!.containsKey('customColors')) {
+             final data = snapshot.data()!['customColors'] as Map<String, dynamic>;
+             _customColors = data.map((key, value) => MapEntry(int.parse(key), Color(value)));
+             notifyListeners();
+           }
+        });
   }
 
   Future<bool> signInWithGoogle() async {

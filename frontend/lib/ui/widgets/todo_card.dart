@@ -9,10 +9,12 @@ class TodoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final customColors = context.select<AuthProvider, Map<int, Color>?>((p) => p.customColors);
+
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-      color: getPriorityColor(todo.priority),
+      color: getPriorityColor(todo.priority, customColors),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),

@@ -19,3 +19,5 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+\n# Firebase\n.firebase/
+\n# Office temp files\n~$*

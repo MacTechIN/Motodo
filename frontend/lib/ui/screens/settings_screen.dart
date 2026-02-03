@@ -4,6 +4,7 @@ import '../../core/design_system.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/todo_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../admin/admin_users_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -65,27 +66,43 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 )
               else
-                FutureBuilder<DocumentSnapshot>(
-                  future: FirebaseFirestore.instance.collection('teams').doc(user!.teamId).get(),
-                  builder: (context, snapshot) {
-                    String displayValue = 'Loading...';
-                    
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      displayValue = 'Loading...';
-                    } else if (snapshot.hasError) {
-                       print('Settings Team Load Error: ${snapshot.error}'); // DEBUG
-                       displayValue = 'Error loading team';
-                    } else if (!snapshot.hasData || !snapshot.data!.exists) {
-                      print('Settings: Team doc ${user!.teamId} does not exist'); // DEBUG
-                      displayValue = 'Team Not Found';
-                    } else {
-                      final data = snapshot.data!.data() as Map<String, dynamic>?;
-                      displayValue = data?['name'] ?? 'Unnamed Team';
-                    }
-                    
-                    return _buildSettingItem(Icons.group_work, 'Team Name', displayValue); 
+                Column(
+                   children: [
+                      FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance.collection('teams').doc(user!.teamId).get(),
+                      builder: (context, snapshot) {
+                        String displayValue = 'Loading...';
+                        
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          displayValue = 'Loading...';
+                        } else if (snapshot.hasError) {
+                           print('Settings Team Load Error: ${snapshot.error}'); // DEBUG
+                           displayValue = 'Error loading team';
+                        } else if (!snapshot.hasData || !snapshot.data!.exists) {
+                          print('Settings: Team doc ${user!.teamId} does not exist'); // DEBUG
+                          displayValue = 'Team Not Found';
+                        } else {
+                          final data = snapshot.data!.data() as Map<String, dynamic>?;
+                          displayValue = data?['name'] ?? 'Unnamed Team';
+                        }
+                        
+                        return _buildSettingItem(Icons.group_work, 'Team Name', displayValue); 
+                      },
+                    ),
+                   ],
+                ),
+
+              // DEBUG TOOL: View All Users
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: TextButton.icon(
+                  icon: const Icon(Icons.admin_panel_settings, size: 16, color: Colors.blueGrey),
+                  label: const Text("Debug: View All Users", style: TextStyle(color: Colors.blueGrey)),
+                  onPressed: () {
+                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminUsersScreen()));
                   },
                 ),
+              ),
               _buildSettingItem(Icons.verified_user, 'Role', user?.role ?? 'Member'),
               
               const Spacer(),

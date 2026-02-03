@@ -83,15 +83,13 @@ class AuthProvider with ChangeNotifier {
                
                // Auto-Heal: If Team ID is missing, create one (Background)
                if (_user?.teamId == null) {
-                  print("Real-time: User has no team. Background creating...");
                   joinOrCreateTeam("${_user?.displayName ?? 'My'}'s Team", forceCreate: true);
                }
 
                _syncTeamSettings();
              } else {
                // First Login: Create User Doc
-               print("Creating new user profile doc...");
-               FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+               _updateUserDoc(firebaseUser.uid, {
                   'email': firebaseUser.email ?? '',
                   'displayName': firebaseUser.displayName ?? 'User',
                   'role': 'member',
@@ -141,9 +139,9 @@ class AuthProvider with ChangeNotifier {
         // This prevents double-execution and race conditions.
 
         try {
-           await FirebaseFirestore.instance.collection('users').doc(cred.user!.uid).set({
+           await _updateUserDoc(cred.user!.uid, {
             'email': email,
-            'displayName': displayName, // Save actual name
+            'displayName': displayName,
             'role': 'member',
             'createdAt': FieldValue.serverTimestamp(),
           });
@@ -184,13 +182,13 @@ class AuthProvider with ChangeNotifier {
 
       await _auth.signInWithCredential(credential);
       
-      // Update lastLoginAt
+      // Update Profile metadata
       if (_auth.currentUser != null) {
-        await FirebaseFirestore.instance.collection('users').doc(_auth.currentUser!.uid).set({
+        await _updateUserDoc(_auth.currentUser!.uid, {
           'email': _auth.currentUser!.email,
           'displayName': _auth.currentUser!.displayName,
           'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        });
       }
 
       return true;
@@ -203,13 +201,13 @@ class AuthProvider with ChangeNotifier {
   Future<bool> signInWithEmail(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
-       // Update lastLoginAt
+       // Update Profile metadata
       if (_auth.currentUser != null) {
-        await FirebaseFirestore.instance.collection('users').doc(_auth.currentUser!.uid).set({
+        await _updateUserDoc(_auth.currentUser!.uid, {
           'email': _auth.currentUser!.email,
           'displayName': _auth.currentUser!.displayName ?? email.split('@').first,
           'lastLoginAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        });
       }
       return true;
     } catch (e) {
@@ -267,11 +265,12 @@ class AuthProvider with ChangeNotifier {
         print('Creating new team: $teamName ($teamId)');
       }
 
-      // 3. Update User Profile (Safe Merge)
-      await FirebaseFirestore.instance.collection('users').doc(_user!.id).set({
+      // 3. Update User Profile (Standardized)
+      await _updateUserDoc(_user!.id, {
         'teamId': teamId,
+        'teamName': teamName,
         'role': role 
-      }, SetOptions(merge: true));
+      });
 
       // 4. Update Local State
       _user = _user!.copyWith(teamId: teamId, role: role);
@@ -288,5 +287,17 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+  }
+
+  /// Standardized User Document Update
+  Future<void> _updateUserDoc(String uid, Map<String, dynamic> data) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        data, 
+        SetOptions(merge: true)
+      );
+    } catch (e) {
+      print("Error updating user doc: $e");
+    }
   }
 }

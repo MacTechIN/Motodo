@@ -373,12 +373,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTeamTodos(TodoProvider prov) {
+    final auth = context.read<AuthProvider>();
+    final teamName = auth.user?.teamName ?? 'Team';
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Team Collaboration', style: AppTextStyles.subHeading),
+          Text('$teamName\'s Progress', style: AppTextStyles.subHeading),
           const SizedBox(height: 16),
           Expanded( // Make scrollable separately if needed, or just list
              child: Column(

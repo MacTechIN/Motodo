@@ -133,60 +133,82 @@ class _AdminDashboardState extends State<AdminDashboard> {
                    }
                 }
 
-                return Column(
-                  children: [
-                    GridView.count(
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: [
-                        _MetricCard(
-                          label: 'Total Tasks', 
-                          value: '$totalCount', 
-                          icon: Icons.assignment, 
-                          color: const Color(0xFF2196F3), // Blue
-                          gradientColors: [const Color(0xFF2196F3), const Color(0xFF64B5F6)],
-                        ),
-                        _MetricCard(
-                          label: 'Processed', 
-                          value: '$processedCount', 
-                          icon: Icons.check_circle_outline, 
-                          color: const Color(0xFF4CAF50), // Green
-                          gradientColors: [const Color(0xFF43A047), const Color(0xFF81C784)],
-                        ),
-                        _MetricCard(
-                          label: 'Pending', 
-                          value: '$pendingCount', 
-                          icon: Icons.pending_actions, 
-                          color: const Color(0xFFFF9800), // Orange
-                          gradientColors: [const Color(0xFFF57C00), const Color(0xFFFFB74D)],
-                        ),
-                        _MetricCard(
-                          label: 'Members', 
-                          value: '$_memberCount', 
-                          icon: Icons.people, 
-                          color: const Color(0xFF9C27B0), // Purple
-                          gradientColors: [const Color(0xFF7B1FA2), const Color(0xFFBA68C8)],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                    const Text('Priority Distribution (Active)', style: AppTextStyles.subHeading),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 200,
-                      child: Row(
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = constraints.maxWidth < 600;
+
+
+                      final crossAxisCount = isMobile ? 2 : 4;
+                      final childAspectRatio = isMobile ? 1.3 : 1.0; // 2 columns are wide, so 1.3 (W/H) means shorter height? No.
+                      // Mobile 2 cols: Width ~170px. Content height ~120px. 170/120 = 1.4. 
+                      // So 1.3 is safe. 
+                      // Mobile 4 cols: Width ~80px. Content height ~120px. 80/120 = 0.66.
+                      // The previous overflowing ratio 1.1 was for 4 columns (implied) or 2?
+                      
+                      // Let's stick to the plan: 0.85 ratio gives MORE height.
+                      // Mobile 2 columns with 0.85 ratio: Width 170, Height 200. That's huge.
+                      // Mobile 2 columns with 1.2 ratio: Width 170, Height 141. Good.
+                      
+                      // Wait, I will use LayoutBuilder again to be safe.
+                      // And I will explicitly set 2 columns for mobile.
+                      
+                      return Column(
                         children: [
-                          Expanded(child: _buildPieChart(context, distribution)),
-                          const SizedBox(width: 32),
-                          _buildLegend(context),
+                          GridView.count(
+                            crossAxisCount: isMobile ? 2 : 4,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            shrinkWrap: true,
+                            childAspectRatio: isMobile ? 1.3 : 1.0,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: [
+                              _MetricCard(
+                                label: 'Total Tasks', 
+                                value: '$totalCount', 
+                                icon: Icons.assignment, 
+                                color: const Color(0xFF2196F3), // Blue
+                                gradientColors: [const Color(0xFF2196F3), const Color(0xFF64B5F6)],
+                              ),
+                              _MetricCard(
+                                label: 'Processed', 
+                                value: '$processedCount', 
+                                icon: Icons.check_circle_outline, 
+                                color: const Color(0xFF4CAF50), // Green
+                                gradientColors: [const Color(0xFF43A047), const Color(0xFF81C784)],
+                              ),
+                              _MetricCard(
+                                label: 'Pending', 
+                                value: '$pendingCount', 
+                                icon: Icons.pending_actions, 
+                                color: const Color(0xFFFF9800), // Orange
+                                gradientColors: [const Color(0xFFF57C00), const Color(0xFFFFB74D)],
+                              ),
+                              _MetricCard(
+                                label: 'Members', 
+                                value: '$_memberCount', 
+                                icon: Icons.people, 
+                                color: const Color(0xFF9C27B0), // Purple
+                                gradientColors: [const Color(0xFF7B1FA2), const Color(0xFFBA68C8)],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          const Text('Priority Distribution (Active)', style: AppTextStyles.subHeading),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 200,
+                            child: Row(
+                              children: [
+                                Expanded(child: _buildPieChart(context, distribution)),
+                                const SizedBox(width: 32),
+                                _buildLegend(context),
+                              ],
+                            ),
+                          ),
                         ],
-                      ),
-                    ),
-                  ],
-                );
+                      );
+                    },
+                  );
               },
             ),
             const SizedBox(height: 32),
@@ -388,7 +410,7 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12), // Reduced padding
       decoration: BoxDecoration(
         color: Colors.white,
         gradient: gradientColors != null 
@@ -411,7 +433,7 @@ class _MetricCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, color: gradientColors != null ? Colors.white : color, size: 32),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8), // Reduced spacing
           Text(
             value, 
             style: TextStyle(
@@ -428,7 +450,9 @@ class _MetricCard extends StatelessWidget {
               color: gradientColors != null ? Colors.white.withOpacity(0.9) : Colors.grey, 
               fontWeight: FontWeight.w500
             ), 
-            textAlign: TextAlign.center
+            textAlign: TextAlign.center,
+            maxLines: 1, // Prevent wrap
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

@@ -273,7 +273,7 @@ class AuthProvider with ChangeNotifier {
       });
 
       // 4. Update Local State
-      _user = _user!.copyWith(teamId: teamId, role: role);
+      _user = _user!.copyWith(teamId: teamId, teamName: teamName, role: role);
       _syncTeamSettings(); 
       notifyListeners();
       

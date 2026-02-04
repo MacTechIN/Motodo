@@ -7,16 +7,95 @@ import '../../core/design_system.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/todo_provider.dart';
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
+
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> {
+  int _memberCount = 0;
+  bool _isLoadingMembers = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchMemberCount();
+    });
+  }
+
+  Future<void> _fetchMemberCount() async {
+    final auth = context.read<AuthProvider>();
+    final teamId = auth.user?.teamId;
+    if (teamId == null) return;
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('teamId', isEqualTo: teamId)
+          .count()
+          .get();
+      
+      if (mounted) {
+        setState(() {
+          _memberCount = snapshot.count ?? 0;
+          _isLoadingMembers = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching member count: $e');
+      if (mounted) setState(() => _isLoadingMembers = false);
+    }
+  }
+
+  void _refreshDashboard() {
+    _fetchMemberCount();
+    final auth = context.read<AuthProvider>();
+    final todoProv = context.read<TodoProvider>();
+    if (auth.user != null) {
+      todoProv.syncMyTodos(auth.user!.id);
+      if (auth.user!.teamId != null) {
+        todoProv.syncTeamTodos(auth.user!.teamId!, auth.user!.id);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final auth = context.read<AuthProvider>();
+    final teamName = auth.user?.teamName ?? 'My Team';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard', style: AppTextStyles.subHeading),
+        title: Row(
+          children: [
+            const Text('Dashboard', style: AppTextStyles.subHeading),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Text(
+                teamName, 
+                style: const TextStyle(fontSize: 14, color: Colors.blue, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+               _refreshDashboard();
+               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Refreshing Data...')));
+            },
+          ),
+        ],
         automaticallyImplyLeading: false,
       ),
       body: SingleChildScrollView(
@@ -24,26 +103,28 @@ class AdminDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Team Health', style: AppTextStyles.subHeading),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Team Health', style: AppTextStyles.subHeading),
+                if (_isLoadingMembers)
+                   const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                   Text('$_memberCount Members', style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.bold)),
+              ],
+            ),
             const SizedBox(height: 16),
             Builder(
               builder: (context) {
                 final todoProv = context.watch<TodoProvider>();
                 
-                // --- Local Metrics Calculation (Robust & Live) ---
+                // --- Local Metrics Calculation (Consolidated) ---
                 final allTodos = [...todoProv.myTodos, ...todoProv.teamTodos];
                 final totalCount = allTodos.length;
-                final completedCount = allTodos.where((t) => t.isCompleted).length;
-                final completionRate = totalCount > 0 ? ((completedCount / totalCount) * 100).toInt() : 0;
+                final processedCount = allTodos.where((t) => t.isCompleted).length;
+                final pendingCount = allTodos.where((t) => !t.isCompleted).length;
                 
-                final urgentCount = allTodos.where((t) => t.priority == 5 && !t.isCompleted).length; // Priority 5 is High now? Wait, user inverted it. Priority 1 (High), Priority 5 (Low).
-                // User Request in Step 1689: "1 is highest".
-                // So Urgent Tasks should probably trigger on Priority 1?
-                // The original code was counting Priority 5.
-                // Let's stick to "Urgent Tasks (P1)" since 1 is now High.
-                final urgentP1Count = allTodos.where((t) => t.priority == 1 && !t.isCompleted).length;
-
-                // Distribution
+                // Distribution for Chart
                 final distribution = <String, int>{};
                 for (var t in allTodos) {
                    if (!t.isCompleted) {
@@ -51,9 +132,6 @@ class AdminDashboard extends StatelessWidget {
                      distribution[p] = (distribution[p] ?? 0) + 1;
                    }
                 }
-
-                // Backup Pending (Simulation: just count all for now)
-                final backupPendingCount = totalCount;
 
                 return Column(
                   children: [
@@ -65,28 +143,32 @@ class AdminDashboard extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       children: [
                         _MetricCard(
-                          label: 'Total Tasks', // Replaced "Active Rate" which is hard to calc locally
+                          label: 'Total Tasks', 
                           value: '$totalCount', 
-                          icon: Icons.list_alt, 
-                          color: Colors.blue
+                          icon: Icons.assignment, 
+                          color: const Color(0xFF2196F3), // Blue
+                          gradientColors: [const Color(0xFF2196F3), const Color(0xFF64B5F6)],
                         ),
                         _MetricCard(
-                          label: 'Completion Rate', 
-                          value: '$completionRate%', 
-                          icon: Icons.check_circle, 
-                          color: Colors.green
+                          label: 'Processed', 
+                          value: '$processedCount', 
+                          icon: Icons.check_circle_outline, 
+                          color: const Color(0xFF4CAF50), // Green
+                          gradientColors: [const Color(0xFF43A047), const Color(0xFF81C784)],
                         ),
                         _MetricCard(
-                          label: 'Urgent (P1)', // Changed to P1
-                          value: '$urgentP1Count', 
-                          icon: Icons.priority_high, 
-                          color: Colors.red
+                          label: 'Pending', 
+                          value: '$pendingCount', 
+                          icon: Icons.pending_actions, 
+                          color: const Color(0xFFFF9800), // Orange
+                          gradientColors: [const Color(0xFFF57C00), const Color(0xFFFFB74D)],
                         ),
                         _MetricCard(
-                          label: 'Private Tasks', // Replaced Backup Pending
-                          value: '${allTodos.where((t) => t.isSecret).length}', 
-                          icon: Icons.lock, 
-                          color: Colors.orange
+                          label: 'Members', 
+                          value: '$_memberCount', 
+                          icon: Icons.people, 
+                          color: const Color(0xFF9C27B0), // Purple
+                          gradientColors: [const Color(0xFF7B1FA2), const Color(0xFFBA68C8)],
                         ),
                       ],
                     ),
@@ -293,8 +375,15 @@ class _MetricCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final List<Color>? gradientColors;
 
-  const _MetricCard({required this.label, required this.value, required this.icon, required this.color});
+  const _MetricCard({
+    required this.label, 
+    required this.value, 
+    required this.icon, 
+    required this.color,
+    this.gradientColors,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -302,17 +391,45 @@ class _MetricCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        gradient: gradientColors != null 
+            ? LinearGradient(
+                colors: gradientColors!, 
+                begin: Alignment.topLeft, 
+                end: Alignment.bottomRight
+              ) 
+            : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (gradientColors?.first ?? color).withOpacity(0.3), 
+            blurRadius: 12, 
+            offset: const Offset(0, 4)
+          )
+        ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 32),
+          Icon(icon, color: gradientColors != null ? Colors.white : color, size: 32),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(
+            value, 
+            style: TextStyle(
+              fontSize: 24, 
+              fontWeight: FontWeight.bold, 
+              color: gradientColors != null ? Colors.white : Colors.black87
+            )
+          ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
+          Text(
+            label, 
+            style: TextStyle(
+              fontSize: 12, 
+              color: gradientColors != null ? Colors.white.withOpacity(0.9) : Colors.grey, 
+              fontWeight: FontWeight.w500
+            ), 
+            textAlign: TextAlign.center
+          ),
         ],
       ),
     );

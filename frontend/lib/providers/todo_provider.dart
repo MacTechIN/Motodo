@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import '../models/todo.dart';
 
 class TodoProvider with ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db;
+
+  TodoProvider({FirebaseFirestore? firestore}) 
+      : _db = firestore ?? FirebaseFirestore.instance;
   List<Todo> _myTodos = [];
   List<Todo> _teamTodos = [];
   

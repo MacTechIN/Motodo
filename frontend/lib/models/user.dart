@@ -3,6 +3,7 @@ class User {
   final String email;
   final String displayName;
   final String? teamId;
+  final String? teamName;
   final String role;
   final String? statusMessage;
 
@@ -11,6 +12,7 @@ class User {
     required this.email,
     required this.displayName,
     this.teamId,
+    this.teamName,
     required this.role,
     this.statusMessage,
   });
@@ -21,6 +23,7 @@ class User {
       email: json['email'],
       displayName: json['displayName'],
       teamId: json['teamId'],
+      teamName: json['teamName'],
       role: json['role'] ?? 'member',
       statusMessage: json['statusMessage'],
     );
@@ -31,6 +34,7 @@ class User {
     String? email,
     String? displayName,
     String? teamId,
+    String? teamName,
     String? role,
     String? statusMessage,
   }) {
@@ -39,6 +43,7 @@ class User {
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
       teamId: teamId ?? this.teamId,
+      teamName: teamName ?? this.teamName,
       role: role ?? this.role,
       statusMessage: statusMessage ?? this.statusMessage,
     );

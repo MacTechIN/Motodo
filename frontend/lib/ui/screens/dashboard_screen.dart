@@ -7,6 +7,7 @@ import '../../providers/todo_provider.dart';
 import '../widgets/todo_card.dart';
 import '../admin/admin_layout.dart';
 import 'completed_box.dart';
+import '../../models/todo.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -264,56 +265,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         childAspectRatio: isDesktop ? 2.5 : 1.4, // Adjust aspect ratio for desktop list styling vs mobile card
       ),
       itemBuilder: (context, index) {
-        final todo = recentTeamTodos[index];
-        // Calculate "Time Ago" roughly
-        final createdAt = DateTime.tryParse(todo.createdAt?.toString() ?? '') ?? DateTime.now();
-        final diff = DateTime.now().difference(createdAt);
-        String timeAgo = '${diff.inMinutes}m ago';
-        if (diff.inHours > 0) timeAgo = '${diff.inHours}h ago';
-        if (diff.inDays > 0) timeAgo = '${diff.inDays}d ago';
-
-        final customColors = context.select<AuthProvider, Map<int, Color>?>((p) => p.customColors);
-        final color = getPriorityColor(todo.priority, customColors);
-
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color, 
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                   Text(
-                    'Priority ${todo.priority}:', 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    todo.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(timeAgo, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-                  if (todo.isSecret) const Icon(Icons.lock, size: 12, color: Colors.black54),
-                ],
-              ),
-            ],
-          ),
-        );
+        return _TeamTaskItem(todo: recentTeamTodos[index]);
       },
     );
   }
+
 
   Widget _buildHeader(TodoProvider prov, BuildContext context) {
     // Progress Bar Calculation
@@ -564,6 +520,61 @@ class _AddTodoBottomSheetState extends State<_AddTodoBottomSheet> {
               foregroundColor: AppColors.textPrimary,
             ),
             child: const Text('Create Task'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeamTaskItem extends StatelessWidget {
+  final Todo todo;
+  const _TeamTaskItem({required this.todo});
+
+  @override
+  Widget build(BuildContext context) {
+    // Calculate "Time Ago" roughly
+    final createdAt = DateTime.tryParse(todo.createdAt?.toString() ?? '') ?? DateTime.now();
+    final diff = DateTime.now().difference(createdAt);
+    String timeAgo = '${diff.inMinutes}m ago';
+    if (diff.inHours > 0) timeAgo = '${diff.inHours}h ago';
+    if (diff.inDays > 0) timeAgo = '${diff.inDays}d ago';
+
+    final customColors = context.select<AuthProvider, Map<int, Color>?>((p) => p.customColors);
+    final color = getPriorityColor(todo.priority, customColors);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color, 
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+               Text(
+                'Priority ${todo.priority}:', 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)
+              ),
+              const SizedBox(height: 4),
+              Text(
+                todo.content,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(timeAgo, style: const TextStyle(fontSize: 11, color: Colors.black54)),
+              if (todo.isSecret) const Icon(Icons.lock, size: 12, color: Colors.black54),
+            ],
           ),
         ],
       ),
